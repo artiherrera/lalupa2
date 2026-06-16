@@ -1,0 +1,19 @@
+version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /opt/lalupa2
+file_exists_behavior: OVERWRITE
+hooks:
+  ApplicationStop:
+    - location: deploy/codedeploy/stop.sh
+      timeout: 120
+      runas: root
+  AfterInstall:
+    - location: deploy/codedeploy/after_install.sh
+      timeout: 900
+      runas: root
+  ApplicationStart:
+    - location: deploy/codedeploy/start.sh
+      timeout: 120
+      runas: root
