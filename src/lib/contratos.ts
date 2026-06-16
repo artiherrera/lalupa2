@@ -94,9 +94,9 @@ function ftsCondicion(ambito: Ambito, idx: number): string {
     case "descripcion":
       return campo("descripcion_contrato");
     case "institucion":
-      return campo("institucion");
-    case "siglas":
-      return campo("siglas_institucion");
+      // Una sola opción "Institución" que busca tanto el nombre completo como las
+      // siglas (p. ej. "SEDENA" o "Secretaría de la Defensa" traen lo mismo).
+      return `(${campo("institucion")} OR ${campo("siglas_institucion")})`;
     case "rfc":
       // RFC es un identificador exacto: igualdad sobre el índice btree idx_contratos_rfc.
       return `rfc = upper(btrim($${idx}))`;

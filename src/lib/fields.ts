@@ -8,7 +8,6 @@ export type Ambito =
   | "titulo"
   | "descripcion"
   | "institucion"
-  | "siglas"
   | "rfc";
 
 export const AMBITOS: { value: Ambito; label: string; hint: string }[] = [
@@ -16,8 +15,11 @@ export const AMBITOS: { value: Ambito; label: string; hint: string }[] = [
   { value: "proveedor", label: "Proveedor", hint: "el nombre de la empresa contratista" },
   { value: "titulo", label: "Título", hint: "el título del contrato" },
   { value: "descripcion", label: "Descripción", hint: "la descripción / objeto del contrato" },
-  { value: "institucion", label: "Institución", hint: "el nombre de la dependencia" },
-  { value: "siglas", label: "Siglas", hint: "las siglas de la institución (p. ej. DICONSA)" },
+  {
+    value: "institucion",
+    label: "Institución",
+    hint: "el nombre o las siglas de la dependencia (p. ej. SEDENA o Secretaría de la Defensa)",
+  },
   { value: "rfc", label: "RFC", hint: "el RFC exacto del proveedor" },
 ];
 
