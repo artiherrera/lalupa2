@@ -1,0 +1,7 @@
+# Secretos de conexión — NUNCA versionar
+.env
+
+# Artefactos de la migración
+dump/
+verify/
+*.log

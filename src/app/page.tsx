@@ -1,65 +1,111 @@
-import Image from "next/image";
+import { Suspense } from "react";
+import Link from "next/link";
+import { hayBusqueda } from "@/lib/contratos";
+import { parseParams, type SearchParams } from "@/lib/searchParams";
+import { SearchForm } from "./_components/SearchForm";
+import { Resultados } from "./_components/Resultados";
 
-export default function Home() {
+const EJEMPLOS: { label: string; href: string }[] = [
+  { label: "medicamentos", href: "/?q=medicamentos" },
+  { label: "vacunas OR jeringas", href: "/?q=vacunas+OR+jeringas" },
+  { label: "obra pública 2024", href: "/?q=obra&tipo=OBRA+P%C3%9ABLICA&anio=2024&ambito=descripcion" },
+  { label: "PEMEX", href: "/?q=pemex&ambito=siglas" },
+  { label: "difusión de información", href: "/?q=difusi%C3%B3n+de+informaci%C3%B3n&ambito=proveedor" },
+];
+
+function Cargando() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="mt-6 flex animate-pulse flex-col gap-7">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="h-20 rounded-2xl bg-slate-100 dark:bg-slate-800/60" />
+        ))}
+      </div>
+      <div className="h-44 rounded-2xl bg-slate-100 dark:bg-slate-800/60" />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="h-72 rounded-2xl bg-slate-100 dark:bg-slate-800/60" />
+        <div className="h-72 rounded-2xl bg-slate-100 dark:bg-slate-800/60" />
+      </div>
+      <p className="text-center text-sm text-slate-400">Buscando… los términos muy comunes pueden tardar unos segundos.</p>
+    </div>
+  );
+}
+
+function Ejemplos() {
+  return (
+    <div className="mt-8 flex flex-col items-center">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Prueba con</p>
+      <div className="mt-3 flex flex-wrap justify-center gap-2">
+        {EJEMPLOS.map((e) => (
+          <Link
+            key={e.href}
+            href={e.href}
+            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-600 dark:hover:text-indigo-400"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            {e.label}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const sp = await searchParams;
+  const p = parseParams(sp);
+  const activo = hayBusqueda(p);
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-background/80 backdrop-blur-md dark:border-slate-800/70">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:px-6">
+          <Link href="/" className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-600/30">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+                <circle cx="11" cy="11" r="7" />
+                <path d="m21 21-4.3-4.3" strokeLinecap="round" />
+              </svg>
+            </span>
+            <span>
+              <span className="block text-base font-bold leading-none tracking-tight">La Lupa</span>
+              <span className="block text-xs text-slate-500">Contratos públicos de México</span>
+            </span>
+          </Link>
+          <span className="hidden text-sm text-slate-400 sm:block">1,045,445 contratos · CompraNet</span>
         </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 md:px-6">
+        {!activo && (
+          <div className="mb-7 text-center">
+            <h1 className="text-balance text-3xl font-bold tracking-tight md:text-4xl">
+              Busca en el gasto público
+            </h1>
+            <p className="mx-auto mt-3 max-w-xl text-pretty text-slate-500">
+              Explora más de un millón de contratos del gobierno mexicano. Por proveedor,
+              institución, concepto, RFC y más — con totales en tiempo real.
+            </p>
+          </div>
+        )}
+
+        <SearchForm p={p} />
+
+        {activo ? (
+          <Suspense key={JSON.stringify(p)} fallback={<Cargando />}>
+            <Resultados p={p} />
+          </Suspense>
+        ) : (
+          <Ejemplos />
+        )}
       </main>
+
+      <footer className="border-t border-slate-200/70 py-6 text-center text-xs text-slate-400 dark:border-slate-800/70">
+        Datos públicos de CompraNet (Hacienda) · La Lupa
+      </footer>
     </div>
   );
 }
