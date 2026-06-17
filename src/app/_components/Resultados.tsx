@@ -109,9 +109,25 @@ export async function Resultados({ p }: { p: ParamsBusqueda }) {
   const desde = data.pagina * data.porPagina + 1;
   const hasta = data.pagina * data.porPagina + data.resultados.length;
   const hayMas = hasta < data.n;
+  const reporteHref = `/api/report${hrefCon(p) === "/" ? "" : hrefCon(p).slice(1)}`;
 
   return (
     <div className="mt-6 flex flex-col gap-7">
+      {/* Barra de acciones */}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-slate-500">Resultados de la consulta</h2>
+        <a
+          href={reporteHref}
+          className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-indigo-200 bg-white px-3.5 py-2 text-sm font-semibold text-indigo-700 transition-colors hover:border-indigo-300 hover:bg-indigo-50 dark:border-indigo-900 dark:bg-slate-900 dark:text-indigo-300 dark:hover:bg-slate-800"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M12 3v12m0 0 4-4m-4 4-4-4" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5 21h14" strokeLinecap="round" />
+          </svg>
+          Exportar PDF
+        </a>
+      </div>
+
       {/* KPIs */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Kpi label="Contratos" value={fmtNum(data.n)} />

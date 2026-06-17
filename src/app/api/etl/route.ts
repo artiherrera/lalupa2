@@ -21,6 +21,11 @@ export async function POST(req: NextRequest) {
   try {
     // request.body (web stream) -> Node stream para csv-parse
     const stream = Readable.fromWeb(req.body as Parameters<typeof Readable.fromWeb>[0]);
+    // Si el cliente corta la conexión (recarga/cierra), el stream emite 'aborted'/
+    // ECONNRESET. Sin este listener se vuelve un uncaughtException que puede tumbar
+    // el server standalone en prod. Lo absorbemos: el error en curso ya lo captura
+    // el try/catch vía el rechazo del async-iterator.
+    stream.on("error", () => {});
     const res = await cargarCsv(stream, { delimiter, encoding });
     return Response.json({ ok: true, ...res });
   } catch (e) {

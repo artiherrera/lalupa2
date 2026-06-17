@@ -240,3 +240,100 @@ export async function buscar(p: ParamsBusqueda): Promise<Resultado> {
     topGrupos: TOP_GRUPOS,
   };
 }
+
+// --- Informe PDF -----------------------------------------------------------
+
+export const INFORME_MAX_CONTRATOS = 5000; // tope de filas en el desglose del PDF
+export const INFORME_MAX_GRUPOS = 100; // tope de proveedores/instituciones en el PDF
+
+export interface DatosInforme {
+  n: number;
+  total: number;
+  promedio: number;
+  nProveedores: number;
+  nInstituciones: number;
+  porAnio: PorAnio[];
+  proveedores: Grupo[];
+  instituciones: Grupo[];
+  contratos: Contrato[];
+  maxContratos: number;
+}
+
+interface FilaInforme {
+  n: number;
+  total: number;
+  promedio: number;
+  n_proveedores: number;
+  n_instituciones: number;
+  por_anio: PorAnio[] | null;
+  proveedores: Grupo[] | null;
+  instituciones: Grupo[] | null;
+  contratos: Contrato[] | null;
+}
+
+/**
+ * Datos para el informe PDF: mismos KPIs/agregados que buscar(), pero sin
+ * paginar — devuelve hasta INFORME_MAX_CONTRATOS contratos (ordenados por monto)
+ * y hasta INFORME_MAX_GRUPOS proveedores/instituciones.
+ */
+export async function datosInforme(p: ParamsBusqueda): Promise<DatosInforme> {
+  const { sql: where, params } = construirWhere(p);
+
+  const sql = `
+    WITH m AS MATERIALIZED (
+      SELECT codigo_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
+             institucion, siglas_institucion, importe, moneda_norm, anio_fuente,
+             fecha_publicacion, estatus_contrato, tipo_contratacion, tipo_procedimiento,
+             direccion_anuncio, rfc, anio_fundacion_empresa
+        FROM contratos.contratos
+       WHERE ${where}
+    )
+    SELECT
+      (SELECT count(*)::int FROM m) AS n,
+      (SELECT coalesce(sum(importe), 0)::float8 FROM m) AS total,
+      (SELECT coalesce(avg(importe), 0)::float8 FROM m) AS promedio,
+      (SELECT count(DISTINCT proveedor_contratista)::int FROM m) AS n_proveedores,
+      (SELECT count(DISTINCT coalesce(siglas_institucion, institucion))::int FROM m) AS n_instituciones,
+      (SELECT json_agg(x) FROM (
+         SELECT anio_fuente AS anio, count(*)::int AS n, coalesce(sum(importe), 0)::float8 AS total
+           FROM m GROUP BY anio_fuente ORDER BY anio_fuente
+       ) x) AS por_anio,
+      (SELECT json_agg(x) FROM (
+         SELECT proveedor_contratista AS clave,
+                min(rfc) FILTER (WHERE rfc IS NOT NULL AND btrim(rfc) <> '') AS rfc,
+                count(*)::int AS n, coalesce(sum(importe), 0)::float8 AS total
+           FROM m WHERE proveedor_contratista IS NOT NULL
+          GROUP BY proveedor_contratista ORDER BY coalesce(sum(importe), 0) DESC, count(*) DESC
+          LIMIT ${INFORME_MAX_GRUPOS}
+       ) x) AS proveedores,
+      (SELECT json_agg(x) FROM (
+         SELECT coalesce(siglas_institucion, institucion) AS clave, count(*)::int AS n, coalesce(sum(importe), 0)::float8 AS total
+           FROM m WHERE coalesce(siglas_institucion, institucion) IS NOT NULL
+          GROUP BY coalesce(siglas_institucion, institucion) ORDER BY coalesce(sum(importe), 0) DESC, count(*) DESC
+          LIMIT ${INFORME_MAX_GRUPOS}
+       ) x) AS instituciones,
+      (SELECT json_agg(x) FROM (
+         SELECT codigo_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
+                institucion, siglas_institucion, importe, moneda_norm, anio_fuente,
+                fecha_publicacion, estatus_contrato, tipo_contratacion, tipo_procedimiento,
+                direccion_anuncio, anio_fundacion_empresa, rfc
+           FROM m ORDER BY importe DESC NULLS LAST LIMIT ${INFORME_MAX_CONTRATOS}
+       ) x) AS contratos
+  `;
+
+  const rows = await query<FilaInforme>(sql, params);
+  const r = rows[0];
+
+  return {
+    n: r.n,
+    total: r.total,
+    promedio: r.promedio,
+    nProveedores: r.n_proveedores,
+    nInstituciones: r.n_instituciones,
+    porAnio: r.por_anio ?? [],
+    proveedores: r.proveedores ?? [],
+    instituciones: r.instituciones ?? [],
+    contratos: r.contratos ?? [],
+    maxContratos: INFORME_MAX_CONTRATOS,
+  };
+}

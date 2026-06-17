@@ -9,7 +9,7 @@ const EJEMPLOS: { label: string; href: string }[] = [
   { label: "medicamentos", href: "/?q=medicamentos" },
   { label: "vacunas OR jeringas", href: "/?q=vacunas+OR+jeringas" },
   { label: "obra pública 2024", href: "/?q=obra&tipo=OBRA+P%C3%9ABLICA&anio=2024&ambito=descripcion" },
-  { label: "PEMEX", href: "/?q=pemex&ambito=siglas" },
+  { label: "PEMEX", href: "/?q=pemex&ambito=institucion" },
   { label: "difusión de información", href: "/?q=difusi%C3%B3n+de+informaci%C3%B3n&ambito=proveedor" },
 ];
 
