@@ -170,6 +170,12 @@ function tablaGrupos(doc: Doc, titulo: string, nombreCol: string, grupos: Grupo[
 function tablaContratos(doc: Doc, d: DatosInforme) {
   seccion(doc, "Desglose de contratos");
   const W = ancho(doc);
+  doc
+    .font("Helvetica")
+    .fontSize(7.5)
+    .fillColor(COL.s500)
+    .text("El código de cada contrato enlaza a su anuncio oficial en comprasmx.", M, doc.y, { width: W });
+  doc.y += 5;
   if (d.n > d.contratos.length) {
     const txt = `Mostrando los ${fmtNum(d.contratos.length)} contratos de mayor monto, de ${fmtNum(d.n)} que coinciden. Para el detalle completo usa la exportación a CSV, o afina los filtros (año, institución, importe…).`;
     doc.font("Helvetica").fontSize(8).fillColor(COL.s500);
@@ -217,9 +223,18 @@ function tablaContratos(doc: Doc, d: DatosInforme) {
     doc.font("Helvetica-Bold").text(fmtMXN(c.importe), cx.importe, y + 1, { width: cw.importe, align: "right", lineBreak: false });
     doc.font("Helvetica").fontSize(7).fillColor(COL.s700).text(c.fecha_publicacion ? fmtFecha(c.fecha_publicacion) : c.anio_fuente ?? "—", cx.fecha, y + 1, { width: cw.fecha, lineBreak: false });
     doc.fontSize(6).fillColor(COL.s500).text(fit(doc, c.estatus_contrato, cw.estatus), cx.estatus, y + 1, { width: cw.estatus, lineBreak: false });
-    doc.font("Helvetica").fontSize(6.5).fillColor(COL.s400);
-    if (c.codigo_contrato) doc.text(c.codigo_contrato, cx.contrato, y + 10, { width: cw.contrato, lineBreak: false });
-    if (c.rfc) doc.text(c.rfc, cx.prov, y + 10, { width: cw.prov, lineBreak: false });
+    doc.font("Helvetica").fontSize(6.5);
+    if (c.codigo_contrato) {
+      // El código es un hipervínculo al anuncio oficial (índigo + subrayado).
+      const conLink = Boolean(c.direccion_anuncio);
+      doc.fillColor(conLink ? COL.indigo : COL.s400);
+      doc.text(c.codigo_contrato, cx.contrato, y + 10, {
+        width: cw.contrato,
+        lineBreak: false,
+        ...(conLink ? { link: c.direccion_anuncio as string, underline: true } : {}),
+      });
+    }
+    if (c.rfc) doc.fillColor(COL.s400).text(c.rfc, cx.prov, y + 10, { width: cw.prov, lineBreak: false });
     doc.y = y + ROW;
   });
 }
