@@ -55,6 +55,17 @@ const titulizar = (vals: string[]) =>
     label: v.charAt(0).toUpperCase() + v.slice(1).toLowerCase(),
   }));
 
+function Operador({ ej, desc }: { ej: string; desc: string }) {
+  return (
+    <div className="flex items-baseline gap-2.5">
+      <code className="shrink-0 rounded-md bg-white px-2 py-1 font-mono text-xs text-indigo-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-indigo-300 dark:ring-slate-700">
+        {ej}
+      </code>
+      <span className="text-sm text-slate-600 dark:text-slate-300">{desc}</span>
+    </div>
+  );
+}
+
 export function SearchForm({ p }: { p: ParamsBusqueda }) {
   const nFiltros =
     p.anios.length +
@@ -132,8 +143,39 @@ export function SearchForm({ p }: { p: ParamsBusqueda }) {
         <span className="font-medium text-slate-500">{AMBITOS.find((a) => a.value === p.ambito)?.hint}</span>
       </p>
 
-      {/* Filtros avanzados */}
-      <details open={nFiltros > 0} className="group mt-1">
+      {/* Cómo buscar (operadores booleanos) */}
+      <details className="group/ops mt-1">
+        <summary className="flex cursor-pointer select-none items-center gap-2 rounded-xl px-2 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60">
+          <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 16v-4M12 8h.01" strokeLinecap="round" />
+          </svg>
+          Cómo buscar · operadores
+          <svg className="ml-auto h-4 w-4 text-slate-400 transition-transform group-open/ops:rotate-180" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+            <path d="M5.5 7.5 10 12l4.5-4.5" strokeLinecap="round" />
+          </svg>
+        </summary>
+        <div className="mt-2 rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/20">
+          <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+            Por defecto, varias palabras se buscan <span className="font-semibold">todas juntas</span>. Puedes combinar:
+          </p>
+          <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
+            <Operador ej="vacunas jeringas" desc="contiene ambas palabras (Y)" />
+            <Operador ej="vacunas OR jeringas" desc="cualquiera de las dos (O)" />
+            <Operador ej="medicamentos -covid" desc="excluye lo que lleva el signo −" />
+            <Operador ej={'"servicios de limpieza"'} desc="frase exacta, en ese orden" />
+          </div>
+          <p className="mt-3 text-xs text-slate-400">
+            Se combinan entre sí, p. ej.{" "}
+            <code className="rounded bg-white px-1.5 py-0.5 font-mono text-indigo-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-indigo-300 dark:ring-slate-700">
+              &quot;equipo médico&quot; OR insumos -reactivos
+            </code>
+          </p>
+        </div>
+      </details>
+
+      {/* Filtros avanzados (arranca cerrado; el badge indica cuántos están activos) */}
+      <details className="group mt-1">
         <summary className="flex cursor-pointer select-none items-center gap-2 rounded-xl px-2 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60">
           <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <path d="M3 6h18M7 12h10M11 18h2" strokeLinecap="round" />
