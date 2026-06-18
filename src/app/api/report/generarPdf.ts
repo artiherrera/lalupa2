@@ -20,21 +20,10 @@ const COL = {
   white: "#ffffff",
 };
 const M = 40; // margen
-const ROW = 19; // alto de fila del desglose
 
 const limiteInf = (doc: Doc) => doc.page.height - 42;
 const ancho = (doc: Doc) => doc.page.width - 2 * M;
 
-/** Trunca un texto para que quepa en `width` con la fuente/tamaño actuales. */
-function fit(doc: Doc, text: string | null | undefined, width: number): string {
-  const raw = (text ?? "").trim();
-  if (!raw) return "—";
-  if (doc.widthOfString(raw) <= width) return raw;
-  const aprox = Math.max(1, Math.floor((width / doc.widthOfString(raw)) * raw.length));
-  let t = raw.slice(0, aprox);
-  while (t.length > 1 && doc.widthOfString(`${t}…`) > width) t = t.slice(0, -1);
-  return `${t}…`;
-}
 const pct = (part: number, whole: number) => (whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : "—");
 
 function seccion(doc: Doc, txt: string) {
@@ -134,13 +123,12 @@ function tablaGrupos(doc: Doc, titulo: string, nombreCol: string, grupos: Grupo[
     monto: M + cw.rank + nombreW + cw.contratos,
     pct: M + cw.rank + nombreW + cw.contratos + cw.monto,
   };
-  const rh = conRfc ? 18 : 13;
   const header = () => {
     const y = doc.y;
     doc.rect(M, y, W, 14).fill(COL.s100);
     doc.fillColor(COL.s500).font("Helvetica-Bold").fontSize(6.5);
     doc.text("#", cx.rank, y + 4, { width: cw.rank });
-    doc.text(nombreCol.toUpperCase(), cx.nombre, y + 4, { width: nombreW });
+    doc.text(nombreCol.toUpperCase(), cx.nombre, y + 4, { width: nombreW - 4 });
     doc.text("CONTRATOS", cx.contratos, y + 4, { width: cw.contratos, align: "right" });
     doc.text("MONTO", cx.monto, y + 4, { width: cw.monto, align: "right" });
     doc.text("%", cx.pct, y + 4, { width: cw.pct, align: "right" });
@@ -148,6 +136,11 @@ function tablaGrupos(doc: Doc, titulo: string, nombreCol: string, grupos: Grupo[
   };
   header();
   grupos.forEach((g, i) => {
+    const nombre = g.clave ?? "—";
+    // El nombre completo se ajusta en varias líneas; la fila crece con él.
+    doc.font("Helvetica").fontSize(8);
+    const hNombre = doc.heightOfString(nombre, { width: nombreW - 4 });
+    const rh = Math.max(13, hNombre + 4) + (conRfc && g.rfc ? 8 : 0);
     if (doc.y + rh > limiteInf(doc)) {
       doc.addPage();
       header();
@@ -155,10 +148,9 @@ function tablaGrupos(doc: Doc, titulo: string, nombreCol: string, grupos: Grupo[
     const y = doc.y;
     if (i % 2 === 1) doc.rect(M, y - 1, W, rh).fill(COL.s50);
     doc.font("Helvetica").fontSize(7).fillColor(COL.s400).text(String(i + 1), cx.rank, y + 1, { width: cw.rank });
-    doc.font("Helvetica").fontSize(8).fillColor(COL.ink);
-    doc.text(fit(doc, g.clave, nombreW - 4), cx.nombre, y + 1, { width: nombreW, lineBreak: false });
+    doc.font("Helvetica").fontSize(8).fillColor(COL.ink).text(nombre, cx.nombre, y + 1, { width: nombreW - 4 });
     if (conRfc && g.rfc) {
-      doc.font("Helvetica").fontSize(6.5).fillColor(COL.s400).text(g.rfc, cx.nombre, y + 10, { width: nombreW, lineBreak: false });
+      doc.font("Helvetica").fontSize(6.5).fillColor(COL.s400).text(g.rfc, cx.nombre, y + hNombre + 3, { width: nombreW - 4, lineBreak: false });
     }
     doc.font("Helvetica").fontSize(8).fillColor(COL.ink).text(fmtNum(g.n), cx.contratos, y + 1, { width: cw.contratos, align: "right" });
     doc.font("Helvetica-Bold").text(fmtMXN(g.total), cx.monto, y + 1, { width: cw.monto, align: "right", lineBreak: false });
@@ -167,7 +159,13 @@ function tablaGrupos(doc: Doc, titulo: string, nombreCol: string, grupos: Grupo[
   });
 }
 
-function tablaContratos(doc: Doc, d: DatosInforme) {
+function campo(doc: Doc, label: string, value: string, x: number, w: number) {
+  doc.font("Helvetica").fontSize(8);
+  doc.fillColor(COL.s500).text(label, x, doc.y, { continued: true, width: w });
+  doc.fillColor(COL.ink).text(value);
+}
+
+function bloquesContratos(doc: Doc, d: DatosInforme) {
   seccion(doc, "Desglose de contratos");
   const W = ancho(doc);
   doc
@@ -184,58 +182,62 @@ function tablaContratos(doc: Doc, d: DatosInforme) {
     doc.fillColor(COL.s500).text(txt, M + 7, doc.y + 5, { width: W - 14 });
     doc.y += 8;
   }
-  const cw = { rank: 14, contrato: 168, prov: 112, inst: 60, importe: 66, fecha: 40, estatus: 37 };
-  const cx = {
-    rank: M,
-    contrato: M + 17,
-    prov: M + 188,
-    inst: M + 303,
-    importe: M + 366,
-    fecha: M + 435,
-    estatus: M + 478,
-  };
-  const header = () => {
-    const y = doc.y;
-    doc.rect(M, y, W, 14).fill(COL.s100);
-    doc.fillColor(COL.s500).font("Helvetica-Bold").fontSize(6.5);
-    doc.text("#", cx.rank, y + 4, { width: cw.rank });
-    doc.text("CONTRATO", cx.contrato, y + 4, { width: cw.contrato });
-    doc.text("PROVEEDOR", cx.prov, y + 4, { width: cw.prov });
-    doc.text("INSTITUCIÓN", cx.inst, y + 4, { width: cw.inst });
-    doc.text("IMPORTE", cx.importe, y + 4, { width: cw.importe, align: "right" });
-    doc.text("FECHA", cx.fecha, y + 4, { width: cw.fecha });
-    doc.text("ESTATUS", cx.estatus, y + 4, { width: cw.estatus });
-    doc.y = y + 16;
-  };
-  header();
+
+  const sx = M + 12; // sangría del cuerpo de la ficha
+  const sw = W - 12;
   d.contratos.forEach((c, i) => {
-    if (doc.y + ROW > limiteInf(doc)) {
-      doc.addPage();
-      header();
-    }
-    const y = doc.y;
-    if (i % 2 === 1) doc.rect(M, y - 1, W, ROW).fill(COL.s50);
-    doc.font("Helvetica").fontSize(7).fillColor(COL.s400).text(String(i + 1), cx.rank, y + 1, { width: cw.rank });
-    doc.font("Helvetica").fontSize(8).fillColor(COL.ink);
-    doc.text(fit(doc, c.titulo_contrato || c.descripcion_contrato, cw.contrato - 4), cx.contrato, y + 1, { width: cw.contrato, lineBreak: false });
-    doc.text(fit(doc, c.proveedor_contratista, cw.prov - 4), cx.prov, y + 1, { width: cw.prov, lineBreak: false });
-    doc.text(fit(doc, c.siglas_institucion || c.institucion, cw.inst - 2), cx.inst, y + 1, { width: cw.inst, lineBreak: false });
-    doc.font("Helvetica-Bold").text(fmtMXN(c.importe), cx.importe, y + 1, { width: cw.importe, align: "right", lineBreak: false });
-    doc.font("Helvetica").fontSize(7).fillColor(COL.s700).text(c.fecha_publicacion ? fmtFecha(c.fecha_publicacion) : c.anio_fuente ?? "—", cx.fecha, y + 1, { width: cw.fecha, lineBreak: false });
-    doc.fontSize(6).fillColor(COL.s500).text(fit(doc, c.estatus_contrato, cw.estatus), cx.estatus, y + 1, { width: cw.estatus, lineBreak: false });
-    doc.font("Helvetica").fontSize(6.5);
+    // Reserva mínima para no dejar el título huérfano al pie de página.
+    if (doc.y + 58 > limiteInf(doc)) doc.addPage();
+
+    // Título completo (negrita)
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(9.5)
+      .fillColor(COL.ink)
+      .text(`${i + 1}.  ${c.titulo_contrato || c.descripcion_contrato || "(sin título)"}`, M, doc.y, { width: W });
+    doc.moveDown(0.15);
+
+    // Importe (negrita) · fecha · estatus · tipo
+    const fecha = c.fecha_publicacion ? fmtFecha(c.fecha_publicacion) : c.anio_fuente ?? "—";
+    const tipo = c.tipo_contratacion
+      ? c.tipo_contratacion.charAt(0) + c.tipo_contratacion.slice(1).toLowerCase()
+      : "";
+    const suf = [fecha, c.estatus_contrato, tipo].filter(Boolean).join("      ");
+    doc.fontSize(8);
+    doc.font("Helvetica-Bold").fillColor(COL.ink).text(fmtMXN(c.importe), sx, doc.y, { continued: true, width: sw });
+    doc.font("Helvetica").fillColor(COL.s700).text(suf ? `      ${suf}` : "");
+
+    // Proveedor (nombre completo) + RFC
+    campo(doc, "Proveedor:  ", `${c.proveedor_contratista ?? "—"}${c.rfc ? "      " + c.rfc : ""}`, sx, sw);
+
+    // Institución (nombre completo + siglas)
+    const inst =
+      c.institucion && c.siglas_institucion && c.siglas_institucion !== c.institucion
+        ? `${c.institucion} (${c.siglas_institucion})`
+        : c.institucion || c.siglas_institucion || "—";
+    campo(doc, "Institución:  ", inst, sx, sw);
+
+    // Código con hipervínculo al anuncio oficial
     if (c.codigo_contrato) {
-      // El código es un hipervínculo al anuncio oficial (índigo + subrayado).
-      const conLink = Boolean(c.direccion_anuncio);
-      doc.fillColor(conLink ? COL.indigo : COL.s400);
-      doc.text(c.codigo_contrato, cx.contrato, y + 10, {
-        width: cw.contrato,
-        lineBreak: false,
-        ...(conLink ? { link: c.direccion_anuncio as string, underline: true } : {}),
-      });
+      doc.font("Helvetica").fontSize(8).fillColor(COL.s500).text("Código:  ", sx, doc.y, { continued: true, width: sw });
+      if (c.direccion_anuncio) {
+        doc.fillColor(COL.indigo).text(c.codigo_contrato, { link: c.direccion_anuncio, underline: true });
+      } else {
+        doc.fillColor(COL.ink).text(c.codigo_contrato);
+      }
     }
-    if (c.rfc) doc.fillColor(COL.s400).text(c.rfc, cx.prov, y + 10, { width: cw.prov, lineBreak: false });
-    doc.y = y + ROW;
+
+    // Descripción completa
+    if (c.descripcion_contrato && c.descripcion_contrato.trim() && c.descripcion_contrato !== c.titulo_contrato) {
+      doc.moveDown(0.15);
+      doc.font("Helvetica").fontSize(8).fillColor(COL.s500).text(c.descripcion_contrato.trim(), sx, doc.y, { width: sw });
+    }
+
+    // Separador
+    doc.moveDown(0.45);
+    const sy = doc.y;
+    doc.moveTo(M, sy).lineTo(M + W, sy).lineWidth(0.5).strokeColor(COL.s100).stroke();
+    doc.moveDown(0.45);
   });
 }
 
@@ -289,7 +291,7 @@ export function generarInforme(datos: DatosInforme, filtros: FiltroDesc[], sello
         datos.total,
         true,
       );
-      tablaContratos(doc, datos);
+      bloquesContratos(doc, datos);
       pies(doc);
       doc.end();
     } catch (e) {
