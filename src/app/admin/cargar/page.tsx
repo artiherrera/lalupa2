@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Marca } from "@/app/_components/Marca";
 
 interface Resultado {
   total: number;
@@ -69,18 +70,7 @@ export default function CargarPage() {
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-background/80 backdrop-blur-md dark:border-slate-800/70">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 md:px-6">
-          <Link href="/" className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-600/30">
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
-                <circle cx="11" cy="11" r="7" />
-                <path d="m21 21-4.3-4.3" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span>
-              <span className="block text-base font-bold leading-none tracking-tight">La Lupa</span>
-              <span className="block text-xs text-slate-500">Carga de datos</span>
-            </span>
-          </Link>
+          <Marca subtitulo="Carga de datos" />
           <Link href="/" className="text-sm font-medium text-slate-500 transition-colors hover:text-indigo-600 dark:hover:text-indigo-400">
             ← Volver al buscador
           </Link>

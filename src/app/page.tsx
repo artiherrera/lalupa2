@@ -4,6 +4,7 @@ import { hayBusqueda } from "@/lib/contratos";
 import { parseParams, type SearchParams } from "@/lib/searchParams";
 import { SearchForm } from "./_components/SearchForm";
 import { Resultados } from "./_components/Resultados";
+import { Marca } from "./_components/Marca";
 
 const EJEMPLOS: { label: string; href: string }[] = [
   { label: "medicamentos", href: "/?q=medicamentos" },
@@ -63,18 +64,7 @@ export default async function Home({
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-background/80 backdrop-blur-md dark:border-slate-800/70">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:px-6">
-          <Link href="/" className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-600/30">
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
-                <circle cx="11" cy="11" r="7" />
-                <path d="m21 21-4.3-4.3" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span>
-              <span className="block text-base font-bold leading-none tracking-tight">La Lupa</span>
-              <span className="block text-xs text-slate-500">Contratos públicos de México</span>
-            </span>
-          </Link>
+          <Marca />
           <span className="hidden text-sm text-slate-400 sm:block">1,045,445 contratos · CompraNet</span>
         </div>
       </header>
