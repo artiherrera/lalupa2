@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { buscar, type Grupo, type ParamsBusqueda } from "@/lib/contratos";
+import { registrarBusqueda } from "@/lib/metricas";
 import { ORDENES } from "@/lib/fields";
 import { fmtFecha, fmtMXN, fmtMXNCompacto, fmtNum } from "@/lib/format";
 import { hrefCon } from "@/lib/searchParams";
@@ -81,6 +82,9 @@ export async function Resultados({ p }: { p: ParamsBusqueda }) {
   let data;
   try {
     data = await buscar(p);
+    // Registra la búsqueda (incluye las de 0 resultados). No bloquea el render:
+    // lee cabeceras y dispara el INSERT en segundo plano. Nunca lanza.
+    await registrarBusqueda(p, data.n);
   } catch (e) {
     console.error("buscar() falló:", e);
     return (

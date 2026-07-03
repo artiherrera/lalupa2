@@ -1,0 +1,43 @@
+# Umami — analítica web sin cookies y self-hosted (privacy-first).
+# Responde a "¿de dónde ingresan?": referrers, países, dispositivos, campañas UTM.
+# Corre junto a La Lupa en la misma EC2 y se expone en stats.lalupa.mx vía nginx.
+#
+# Arranque:   cd deploy/analitica && docker compose up -d
+# Se publica solo en localhost:3001 (nginx hace el TLS y el subdominio).
+#
+# Trae su propio Postgres para no tocar el RDS de contratos. Si prefieres usar
+# el RDS, crea una base 'umami' aparte y apunta DATABASE_URL a ella, y borra el
+# servicio 'db' de aquí.
+
+services:
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD}@db:5432/umami
+      DATABASE_TYPE: postgresql
+      # Genera uno con:  openssl rand -base64 32
+      APP_SECRET: ${UMAMI_APP_SECRET}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: umami
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: ${UMAMI_DB_PASSWORD}
+    volumes:
+      - umami-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  umami-db:

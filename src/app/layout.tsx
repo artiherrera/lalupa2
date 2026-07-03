@@ -28,6 +28,18 @@ export default function RootLayout({
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* Umami: analítica de tráfico sin cookies. Inerte hasta configurar las
+            env vars NEXT_PUBLIC_UMAMI_SRC (p.ej. https://stats.lalupa.mx/script.js)
+            y NEXT_PUBLIC_UMAMI_WEBSITE_ID. */}
+        {process.env.NEXT_PUBLIC_UMAMI_SRC && process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && (
+          <script
+            defer
+            src={process.env.NEXT_PUBLIC_UMAMI_SRC}
+            data-website-id={process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID}
+          />
+        )}
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
