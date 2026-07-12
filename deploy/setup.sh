@@ -47,6 +47,8 @@ server {
 
   # Cargas de CSV grandes (ETL de contratos) por /admin/cargar.
   client_max_body_size 512m;
+  # Tiempo para recibir el cuerpo del cliente (subida de 512m por red lenta).
+  client_body_timeout 300s;
 
   location / {
     proxy_pass http://127.0.0.1:3000;
@@ -55,8 +57,9 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
 
-    # El ETL procesa el CSV en streaming y puede tardar minutos: no cortar.
-    proxy_request_buffering off;
+    # Buffering ON (por defecto): nginx recibe TODO el archivo del cliente
+    # primero y luego lo entrega a la app, que puede tardar minutos indexando.
+    # Con buffering off, nginx cortaba con 408 mientras la app hacía upserts.
     proxy_read_timeout 900s;
     proxy_send_timeout 900s;
   }
