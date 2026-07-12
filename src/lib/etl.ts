@@ -150,6 +150,7 @@ export interface ResultadoEtl {
   total: number; // filas insertadas/actualizadas
   lotes: number;
   omitidas: number; // filas sin codigo_contrato (no deduplicables) que se saltaron
+  duplicadas: number; // filas con clave repetida dentro del archivo, colapsadas (last-wins)
   columnas: string[]; // columnas escritas (mapeadas + derivadas)
   ignoradas: string[]; // encabezados del CSV sin columna destino
 }
@@ -204,12 +205,32 @@ export function transformarFila(rec: Record<string, string>, m: Mapeo): unknown[
   return m.finalCols.map((c) => (row[c] ?? null));
 }
 
-async function upsert(cols: string[], filas: unknown[][]) {
+// Deduplica el lote por la clave de conflicto (codigo+titulo+proveedor). Dos filas
+// con la misma clave en un mismo INSERT ... ON CONFLICT provocan el error de Postgres
+// "cannot affect row a second time". El export de comprasmx trae repetidos, así que
+// nos quedamos con la ÚLTIMA ocurrencia (last-wins, igual que el propio upsert). Los
+// duplicados entre lotes distintos no dan problema: son comandos separados y el lote
+// posterior vuelve a actualizar la misma fila.
+function dedupePorClave(cols: string[], filas: unknown[][]): unknown[][] {
+  const idx = CONFLICT.map((c) => cols.indexOf(c));
+  const porClave = new Map<string, unknown[]>();
+  for (const fila of filas) {
+    // Centinela \u0000 para nulos y separador \u0001: no aparecen en los datos,
+    // así claves distintas nunca colisionan al concatenar.
+    const clave = idx.map((i) => (fila[i] == null ? "\u0000" : String(fila[i]))).join("\u0001");
+    porClave.set(clave, fila);
+  }
+  return porClave.size === filas.length ? filas : [...porClave.values()];
+}
+
+/** Hace el upsert del lote (deduplicado) y devuelve cuántas filas únicas escribió. */
+async function upsert(cols: string[], filas: unknown[][]): Promise<number> {
+  const unicas = dedupePorClave(cols, filas);
   const noClave = cols.filter((c) => !CONFLICT.includes(c));
   const params: unknown[] = [];
   let p = 1;
-  const tuplas = filas.map((fila) => `(${fila.map(() => `$${p++}`).join(",")})`);
-  filas.forEach((fila) => params.push(...fila));
+  const tuplas = unicas.map((fila) => `(${fila.map(() => `$${p++}`).join(",")})`);
+  unicas.forEach((fila) => params.push(...fila));
   const onConflict = noClave.length
     ? `DO UPDATE SET ${noClave.map((c) => `${c}=EXCLUDED.${c}`).join(", ")}`
     : "DO NOTHING";
@@ -217,6 +238,7 @@ async function upsert(cols: string[], filas: unknown[][]) {
     `INSERT INTO contratos.contratos (${cols.join(",")}) VALUES ${tuplas.join(",")} ` +
     `ON CONFLICT (${CONFLICT.join(",")}) ${onConflict}`;
   await pool.query(sql, params);
+  return unicas.length;
 }
 
 /**
@@ -247,6 +269,15 @@ export async function cargarCsv(
   let total = 0;
   let lotes = 0;
   let omitidas = 0;
+  let duplicadas = 0;
+
+  const escribirLote = async (mapeo: Mapeo) => {
+    const escritas = await upsert(mapeo.finalCols, lote);
+    total += escritas;
+    duplicadas += lote.length - escritas; // filas colapsadas por clave repetida
+    lotes++;
+    lote = [];
+  };
 
   for await (const rec of parser as AsyncIterable<Record<string, string>>) {
     if (!m) m = construirMapeo(Object.keys(rec));
@@ -256,19 +287,10 @@ export async function cargarCsv(
       continue;
     }
     lote.push(fila);
-    if (lote.length >= LOTE) {
-      await upsert(m.finalCols, lote);
-      total += lote.length;
-      lotes++;
-      lote = [];
-    }
+    if (lote.length >= LOTE) await escribirLote(m);
   }
-  if (m && lote.length) {
-    await upsert(m.finalCols, lote);
-    total += lote.length;
-    lotes++;
-  }
+  if (m && lote.length) await escribirLote(m);
   if (!m) throw new Error("El CSV está vacío (sin encabezados).");
 
-  return { total, lotes, omitidas, columnas: m.finalCols, ignoradas: m.ignoradas };
+  return { total, lotes, omitidas, duplicadas, columnas: m.finalCols, ignoradas: m.ignoradas };
 }

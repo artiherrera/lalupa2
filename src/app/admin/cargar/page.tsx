@@ -8,6 +8,7 @@ interface Resultado {
   total: number;
   lotes: number;
   omitidas: number;
+  duplicadas: number;
   columnas: string[];
   ignoradas: string[];
 }
@@ -198,6 +199,12 @@ export default function CargarPage() {
                 <span className="font-semibold">{resultado.total.toLocaleString("es-MX")}</span>
               </li>
               <li>Lotes: {resultado.lotes.toLocaleString("es-MX")}</li>
+              {resultado.duplicadas > 0 && (
+                <li className="text-slate-600 dark:text-slate-300">
+                  Duplicados en el archivo (colapsados, se conservó el último):{" "}
+                  {resultado.duplicadas.toLocaleString("es-MX")}
+                </li>
+              )}
               {resultado.omitidas > 0 && (
                 <li className="text-amber-700 dark:text-amber-300">
                   Omitidas (sin código de contrato): {resultado.omitidas.toLocaleString("es-MX")}
