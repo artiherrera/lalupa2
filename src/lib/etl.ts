@@ -148,6 +148,8 @@ function derivar(row: Record<string, unknown>): void {
 
 export interface ResultadoEtl {
   total: number; // filas insertadas/actualizadas
+  nuevos: number; // contratos que NO existían en la base (insertados)
+  actualizados: number; // contratos que ya existían y se actualizaron
   lotes: number;
   omitidas: number; // filas sin codigo_contrato (no deduplicables) que se saltaron
   duplicadas: number; // filas con clave repetida dentro del archivo, colapsadas (last-wins)
@@ -223,8 +225,17 @@ function dedupePorClave(cols: string[], filas: unknown[][]): unknown[][] {
   return porClave.size === filas.length ? filas : [...porClave.values()];
 }
 
-/** Hace el upsert del lote (deduplicado) y devuelve cuántas filas únicas escribió. */
-async function upsert(cols: string[], filas: unknown[][]): Promise<number> {
+/**
+ * Hace el upsert del lote (deduplicado). Devuelve cuántas filas únicas escribió y
+ * cuántas de ellas eran NUEVAS (no existían en la base). El truco `xmax = 0`:
+ * en una fila recién insertada xmax vale 0; en una actualizada por ON CONFLICT es
+ * el xid de la transacción (≠ 0). Como una clave solo puede insertarse una vez,
+ * la suma de `nuevos` cuenta cada contrato nuevo exactamente una vez.
+ */
+async function upsert(
+  cols: string[],
+  filas: unknown[][],
+): Promise<{ escritas: number; nuevos: number }> {
   const unicas = dedupePorClave(cols, filas);
   const noClave = cols.filter((c) => !CONFLICT.includes(c));
   const params: unknown[] = [];
@@ -236,9 +247,10 @@ async function upsert(cols: string[], filas: unknown[][]): Promise<number> {
     : "DO NOTHING";
   const sql =
     `INSERT INTO contratos.contratos (${cols.join(",")}) VALUES ${tuplas.join(",")} ` +
-    `ON CONFLICT (${CONFLICT.join(",")}) ${onConflict}`;
-  await pool.query(sql, params);
-  return unicas.length;
+    `ON CONFLICT (${CONFLICT.join(",")}) ${onConflict} RETURNING (xmax = 0) AS inserted`;
+  const res = await pool.query<{ inserted: boolean }>(sql, params);
+  const nuevos = res.rows.reduce((n, r) => n + (r.inserted ? 1 : 0), 0);
+  return { escritas: unicas.length, nuevos };
 }
 
 /**
@@ -270,10 +282,12 @@ export async function cargarCsv(
   let lotes = 0;
   let omitidas = 0;
   let duplicadas = 0;
+  let nuevos = 0;
 
   const escribirLote = async (mapeo: Mapeo) => {
-    const escritas = await upsert(mapeo.finalCols, lote);
+    const { escritas, nuevos: n } = await upsert(mapeo.finalCols, lote);
     total += escritas;
+    nuevos += n;
     duplicadas += lote.length - escritas; // filas colapsadas por clave repetida
     lotes++;
     lote = [];
@@ -292,5 +306,14 @@ export async function cargarCsv(
   if (m && lote.length) await escribirLote(m);
   if (!m) throw new Error("El CSV está vacío (sin encabezados).");
 
-  return { total, lotes, omitidas, duplicadas, columnas: m.finalCols, ignoradas: m.ignoradas };
+  return {
+    total,
+    nuevos,
+    actualizados: total - nuevos,
+    lotes,
+    omitidas,
+    duplicadas,
+    columnas: m.finalCols,
+    ignoradas: m.ignoradas,
+  };
 }

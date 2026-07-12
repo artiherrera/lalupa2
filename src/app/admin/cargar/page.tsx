@@ -6,6 +6,8 @@ import { Marca } from "@/app/_components/Marca";
 
 interface Resultado {
   total: number;
+  nuevos: number;
+  actualizados: number;
   lotes: number;
   omitidas: number;
   duplicadas: number;
@@ -197,6 +199,14 @@ export default function CargarPage() {
               <li>
                 Filas escritas (insertadas o actualizadas):{" "}
                 <span className="font-semibold">{resultado.total.toLocaleString("es-MX")}</span>
+              </li>
+              <li className="text-emerald-800 dark:text-emerald-200">
+                Contratos nuevos (no existían):{" "}
+                <span className="font-semibold">{resultado.nuevos.toLocaleString("es-MX")}</span>
+              </li>
+              <li>
+                Actualizados (ya existían):{" "}
+                <span className="font-semibold">{resultado.actualizados.toLocaleString("es-MX")}</span>
               </li>
               <li>Lotes: {resultado.lotes.toLocaleString("es-MX")}</li>
               {resultado.duplicadas > 0 && (
