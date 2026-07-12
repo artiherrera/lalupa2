@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { hayBusqueda } from "@/lib/contratos";
+import { hayBusqueda, mesesDeAlta } from "@/lib/contratos";
 import { parseParams, type SearchParams } from "@/lib/searchParams";
 import { SearchForm } from "./_components/SearchForm";
 import { Resultados } from "./_components/Resultados";
@@ -59,13 +59,26 @@ export default async function Home({
   const sp = await searchParams;
   const p = parseParams(sp);
   const activo = hayBusqueda(p);
+  const meses = await mesesDeAlta();
 
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-background/80 backdrop-blur-md dark:border-slate-800/70">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:px-6">
           <Marca />
-          <span className="hidden text-sm text-slate-400 sm:block">1,045,445 contratos · CompraNet</span>
+          <nav className="flex items-center gap-4">
+            <Link
+              href="/nuevos"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-teal-700 transition-colors hover:text-teal-600 dark:text-teal-400 dark:hover:text-teal-300"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-teal-500" />
+              </span>
+              Nuevos contratos
+            </Link>
+            <span className="hidden text-sm text-slate-400 sm:block">1,045,445 contratos · CompraNet</span>
+          </nav>
         </div>
       </header>
 
@@ -82,7 +95,7 @@ export default async function Home({
           </div>
         )}
 
-        <SearchForm p={p} />
+        <SearchForm p={p} meses={meses} />
 
         {activo ? (
           <Suspense key={JSON.stringify(p)} fallback={<Cargando />}>

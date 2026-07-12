@@ -28,8 +28,21 @@ export const ORDENES = [
   { value: "importe_asc", label: "Menor importe" },
   { value: "fecha_desc", label: "Más reciente" },
   { value: "fecha_asc", label: "Más antiguo" },
+  { value: "agregado_desc", label: "Agregado recientemente" },
+  { value: "agregado_asc", label: "Agregado hace más" },
 ] as const;
 export type Orden = (typeof ORDENES)[number]["value"];
+
+// Meses en español para etiquetar "2026-07" -> "jul 2026" (mes de alta).
+export const MESES_ES = [
+  "ene", "feb", "mar", "abr", "may", "jun",
+  "jul", "ago", "sep", "oct", "nov", "dic",
+];
+export function etiquetaMes(mes: string): string {
+  const [y, m] = mes.split("-");
+  const i = Number(m) - 1;
+  return i >= 0 && i < 12 ? `${MESES_ES[i]} ${y}` : mes;
+}
 
 export const ANIOS = ["2026", "2025", "2024", "2023", "2022", "2021", "2020", "2019"];
 

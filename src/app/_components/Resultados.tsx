@@ -215,6 +215,9 @@ export async function Resultados({ p }: { p: ParamsBusqueda }) {
                     {c.tipo_contratacion && <span>· {c.tipo_contratacion.toLowerCase()}</span>}
                     {c.anio_fuente && <span>· {c.anio_fuente}</span>}
                     {c.fecha_publicacion && <span>· {fmtFecha(c.fecha_publicacion)}</span>}
+                    {c.created_at && (
+                      <span className="text-teal-600 dark:text-teal-400">· agregado {fmtFecha(c.created_at)}</span>
+                    )}
                     {c.anio_fundacion_empresa ? (
                       <span className="text-slate-400">· empresa fundada en {c.anio_fundacion_empresa}</span>
                     ) : null}

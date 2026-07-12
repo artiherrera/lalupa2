@@ -4,11 +4,12 @@ import {
   ANIOS,
   CARACTERES,
   ESTATUS,
+  etiquetaMes,
   ORDENES_GOBIERNO,
   PROCEDIMIENTOS,
   TIPOS_CONTRATACION,
 } from "@/lib/fields";
-import type { ParamsBusqueda } from "@/lib/contratos";
+import type { MesAlta, ParamsBusqueda } from "@/lib/contratos";
 
 function Facet({
   titulo,
@@ -66,7 +67,15 @@ function Operador({ ej, desc }: { ej: string; desc: string }) {
   );
 }
 
-export function SearchForm({ p }: { p: ParamsBusqueda }) {
+export function SearchForm({
+  p,
+  action = "/",
+  meses = [],
+}: {
+  p: ParamsBusqueda;
+  action?: string;
+  meses?: MesAlta[];
+}) {
   const nFiltros =
     p.anios.length +
     p.tiposContratacion.length +
@@ -77,11 +86,12 @@ export function SearchForm({ p }: { p: ParamsBusqueda }) {
     (p.importeMin != null ? 1 : 0) +
     (p.importeMax != null ? 1 : 0) +
     (p.fundacionMin != null ? 1 : 0) +
-    (p.fundacionMax != null ? 1 : 0);
+    (p.fundacionMax != null ? 1 : 0) +
+    (p.mesAlta != null ? 1 : 0);
 
   return (
     <Form
-      action="/"
+      action={action}
       className="rounded-2xl border border-slate-200 bg-white p-2 shadow-lg shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
     >
       {/* Barra principal */}
@@ -253,6 +263,35 @@ export function SearchForm({ p }: { p: ParamsBusqueda }) {
               />
             </div>
           </fieldset>
+          {meses.length > 0 && (
+            <fieldset className="col-span-2 min-w-0 sm:col-span-1">
+              <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                Mes de alta en la plataforma
+              </legend>
+              <div className="relative">
+                <select
+                  name="mes"
+                  defaultValue={p.mesAlta ?? ""}
+                  className="h-9 w-full cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white px-2.5 pr-8 text-sm outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800"
+                >
+                  <option value="">Cualquiera</option>
+                  {meses.map((m) => (
+                    <option key={m.mes} value={m.mes}>
+                      {etiquetaMes(m.mes)} ({m.n.toLocaleString("es-MX")})
+                    </option>
+                  ))}
+                </select>
+                <svg
+                  className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  aria-hidden
+                >
+                  <path d="M5.5 7.5 10 12l4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </div>
+            </fieldset>
+          )}
         </div>
 
         <div className="mt-3 flex items-center gap-3 px-2">

@@ -31,11 +31,14 @@ export function parseParams(sp: SearchParams): ParamsBusqueda {
   const ambito = one(sp.ambito);
   const orden = one(sp.orden);
   const pagina = parseInt(one(sp.pagina) ?? "0", 10);
+  const mes = one(sp.mes);
   return {
     q: (one(sp.q) ?? "").slice(0, 200),
     ambito: (AMBITOS.some((a) => a.value === ambito) ? ambito : "todo") as Ambito,
     orden: (ORDENES.some((o) => o.value === orden) ? orden : "importe_desc") as Orden,
     pagina: Number.isFinite(pagina) && pagina > 0 ? pagina : 0,
+    // "YYYY-MM" con mes 01-12; cualquier otra cosa se descarta.
+    mesAlta: mes && /^\d{4}-(0[1-9]|1[0-2])$/.test(mes) ? mes : null,
     anios: many(sp.anio).filter((v) => ANIOS.includes(v)),
     tiposContratacion: many(sp.tipo).filter((v) => TIPOS_CONTRATACION.includes(v)),
     procedimientos: many(sp.proc).filter((v) => PROCEDIMIENTOS.some((p) => p.value === v)),
@@ -61,6 +64,7 @@ export function hrefCon(p: ParamsBusqueda, overrides: Override = {}): string {
   if (p.ambito !== "todo") usp.set("ambito", p.ambito);
   if (p.orden !== "importe_desc") usp.set("orden", p.orden);
   if (p.pagina > 0) usp.set("pagina", String(p.pagina));
+  if (p.mesAlta) usp.set("mes", p.mesAlta);
   set("anio", p.anios);
   set("tipo", p.tiposContratacion);
   set("proc", p.procedimientos);

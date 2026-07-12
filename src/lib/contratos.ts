@@ -22,6 +22,7 @@ export interface ParamsBusqueda extends Filtros {
   ambito: Ambito;
   orden: Orden;
   pagina: number; // base 0
+  mesAlta: string | null; // "YYYY-MM": mes en que se agregó a la plataforma
 }
 
 export interface Grupo {
@@ -54,6 +55,7 @@ export interface Contrato {
   direccion_anuncio: string | null;
   anio_fundacion_empresa: number | null;
   rfc: string | null;
+  created_at: string | null; // fecha en que se agregó a la plataforma
 }
 
 export interface Resultado {
@@ -76,6 +78,8 @@ const ORDEN_SQL: Record<Orden, string> = {
   importe_asc: "importe ASC NULLS LAST",
   fecha_desc: "fecha_publicacion DESC NULLS LAST",
   fecha_asc: "fecha_publicacion ASC NULLS LAST",
+  agregado_desc: "created_at DESC NULLS LAST",
+  agregado_asc: "created_at ASC NULLS LAST",
 };
 
 // Condición full-text según el ámbito. `idx` es el número de parámetro ($n) del
@@ -129,6 +133,17 @@ function construirWhere(p: ParamsBusqueda): { sql: string; params: unknown[] } {
   if (p.caracteres.length) add((i) => `caracter_procedimiento = ANY($${i})`, p.caracteres);
   if (p.importeMin != null) add((i) => `importe >= $${i}`, p.importeMin);
   if (p.importeMax != null) add((i) => `importe <= $${i}`, p.importeMax);
+  if (p.mesAlta) {
+    // Rango [inicio de mes, inicio del mes siguiente): usa el índice de created_at
+    // en vez de un to_char() por fila.
+    const [y, m] = p.mesAlta.split("-").map(Number);
+    const inicio = `${p.mesAlta}-01`;
+    const finAnio = m === 12 ? y + 1 : y;
+    const finMes = m === 12 ? 1 : m + 1;
+    const fin = `${finAnio}-${String(finMes).padStart(2, "0")}-01`;
+    params.push(inicio, fin);
+    conds.push(`created_at >= $${params.length - 1} AND created_at < $${params.length}`);
+  }
   if (p.fundacionMin != null) add((i) => `anio_fundacion_empresa >= $${i}`, p.fundacionMin);
   if (p.fundacionMax != null) add((i) => `anio_fundacion_empresa <= $${i}`, p.fundacionMax);
   if (p.procedimientos.length) {
@@ -154,8 +169,32 @@ export function hayBusqueda(p: ParamsBusqueda): boolean {
       p.importeMin != null ||
       p.importeMax != null ||
       p.fundacionMin != null ||
-      p.fundacionMax != null,
+      p.fundacionMax != null ||
+      p.mesAlta != null,
   );
+}
+
+export interface MesAlta {
+  mes: string; // "YYYY-MM"
+  n: number; // contratos agregados ese mes
+}
+
+// Memo de 10 min: agregar por mes sobre >1M filas cuesta, y la lista cambia poco
+// (solo cuando se cargan contratos). Se comparte entre portada, /nuevos y filtros.
+let mesesCache: { at: number; data: MesAlta[] } | null = null;
+
+/** Meses (YYYY-MM) en que se han agregado contratos, del más reciente al más antiguo. */
+export async function mesesDeAlta(): Promise<MesAlta[]> {
+  const ahora = Date.now();
+  if (mesesCache && ahora - mesesCache.at < 10 * 60_000) return mesesCache.data;
+  const data = await query<MesAlta>(
+    `SELECT to_char(created_at, 'YYYY-MM') AS mes, count(*)::int AS n
+       FROM contratos.contratos
+      WHERE created_at IS NOT NULL
+      GROUP BY 1 ORDER BY 1 DESC`,
+  );
+  mesesCache = { at: ahora, data };
+  return data;
 }
 
 interface FilaBundle {
@@ -185,7 +224,7 @@ export async function buscar(p: ParamsBusqueda): Promise<Resultado> {
       SELECT codigo_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
              institucion, siglas_institucion, importe, moneda_norm, anio_fuente,
              fecha_publicacion, estatus_contrato, tipo_contratacion, tipo_procedimiento,
-             direccion_anuncio, rfc, anio_fundacion_empresa
+             direccion_anuncio, rfc, anio_fundacion_empresa, created_at
         FROM contratos.contratos
        WHERE ${where}
     )
@@ -217,7 +256,7 @@ export async function buscar(p: ParamsBusqueda): Promise<Resultado> {
          SELECT codigo_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
                 institucion, siglas_institucion, importe, moneda_norm, anio_fuente,
                 fecha_publicacion, estatus_contrato, tipo_contratacion, tipo_procedimiento,
-                direccion_anuncio, anio_fundacion_empresa, rfc
+                direccion_anuncio, anio_fundacion_empresa, rfc, created_at
            FROM m ORDER BY ${orden} LIMIT ${POR_PAGINA} OFFSET ${offset}
        ) x) AS resultados
   `;
@@ -284,7 +323,7 @@ export async function datosInforme(p: ParamsBusqueda): Promise<DatosInforme> {
       SELECT codigo_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
              institucion, siglas_institucion, importe, moneda_norm, anio_fuente,
              fecha_publicacion, estatus_contrato, tipo_contratacion, tipo_procedimiento,
-             direccion_anuncio, rfc, anio_fundacion_empresa
+             direccion_anuncio, rfc, anio_fundacion_empresa, created_at
         FROM contratos.contratos
        WHERE ${where}
     )
@@ -316,7 +355,7 @@ export async function datosInforme(p: ParamsBusqueda): Promise<DatosInforme> {
          SELECT codigo_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
                 institucion, siglas_institucion, importe, moneda_norm, anio_fuente,
                 fecha_publicacion, estatus_contrato, tipo_contratacion, tipo_procedimiento,
-                direccion_anuncio, anio_fundacion_empresa, rfc
+                direccion_anuncio, anio_fundacion_empresa, rfc, created_at
            FROM m ORDER BY importe DESC NULLS LAST LIMIT ${INFORME_MAX_CONTRATOS}
        ) x) AS contratos
   `;
