@@ -51,7 +51,8 @@ export default function CargarPage() {
     setResultado(null);
     setEstado("Subiendo y procesando… en archivos grandes puede tardar varios minutos. No cierres ni recargues esta pestaña.");
     try {
-      const qs = new URLSearchParams({ delimiter, encoding });
+      const esGz = /\.gz$/i.test(file.name);
+      const qs = new URLSearchParams({ delimiter, encoding, ...(esGz ? { gzip: "1" } : {}) });
       const r = await fetch(`/api/etl?${qs}`, {
         method: "POST",
         headers: { "x-admin-token": token, "content-type": "text/csv" },
@@ -100,6 +101,14 @@ export default function CargarPage() {
             Puedes resubir el mismo archivo sin duplicar. Sube el archivo{" "}
             <span className="font-semibold">contratos_…csv</span>, no el de expedientes.
           </p>
+          <p className="mt-2 rounded-xl bg-teal-50 px-4 py-3 text-sm text-teal-800 dark:bg-teal-950/40 dark:text-teal-200">
+            <span className="font-semibold">¿Archivo grande?</span> Comprímelo antes de subir — pesa
+            ~8× menos y la subida es mucho más rápida y confiable. En tu Mac:{" "}
+            <code className="rounded bg-white px-1.5 py-0.5 font-mono text-xs text-teal-900 ring-1 ring-teal-200 dark:bg-slate-900 dark:text-teal-200 dark:ring-teal-800">
+              gzip -k contratos.csv
+            </code>{" "}
+            y sube el <span className="font-semibold">.csv.gz</span> que genera. Se descomprime solo en el servidor.
+          </p>
 
           <form onSubmit={enviar} className="mt-6 space-y-5">
             <div>
@@ -120,7 +129,7 @@ export default function CargarPage() {
               <input
                 id="file"
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,.gz,text/csv,application/gzip"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 className="w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-600 transition-colors file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:border-slate-300 hover:file:bg-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:file:bg-indigo-950/60 dark:file:text-indigo-300"
               />

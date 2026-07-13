@@ -1,4 +1,5 @@
 import { Readable } from "node:stream";
+import { createGunzip } from "node:zlib";
 import type { NextRequest } from "next/server";
 import { cargarCsv } from "@/lib/etl";
 
@@ -18,14 +19,24 @@ export async function POST(req: NextRequest) {
   const delimParam = req.nextUrl.searchParams.get("delimiter") || ",";
   const delimiter = delimParam === "tab" ? "\t" : delimParam;
   const encoding = (req.nextUrl.searchParams.get("encoding") || "latin1") as BufferEncoding;
+  // CSV comprimido: el navegador sube un .csv.gz (mucho más chico) y aquí lo
+  // descomprimimos en streaming antes de parsear.
+  const esGzip =
+    req.nextUrl.searchParams.get("gzip") === "1" ||
+    req.headers.get("content-encoding") === "gzip";
   try {
     // request.body (web stream) -> Node stream para csv-parse
-    const stream = Readable.fromWeb(req.body as Parameters<typeof Readable.fromWeb>[0]);
+    let stream: Readable = Readable.fromWeb(req.body as Parameters<typeof Readable.fromWeb>[0]);
     // Si el cliente corta la conexión (recarga/cierra), el stream emite 'aborted'/
     // ECONNRESET. Sin este listener se vuelve un uncaughtException que puede tumbar
     // el server standalone en prod. Lo absorbemos: el error en curso ya lo captura
     // el try/catch vía el rechazo del async-iterator.
     stream.on("error", () => {});
+    if (esGzip) {
+      const gunzip = createGunzip();
+      gunzip.on("error", () => {}); // .gz corrupto: lo captura el try/catch al iterar
+      stream = stream.pipe(gunzip);
+    }
     const res = await cargarCsv(stream, { delimiter, encoding });
     return Response.json({ ok: true, ...res });
   } catch (e) {
