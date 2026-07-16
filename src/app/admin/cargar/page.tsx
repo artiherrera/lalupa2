@@ -58,9 +58,36 @@ export default function CargarPage() {
         headers: { "x-admin-token": token, "content-type": "text/csv" },
         body: file,
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
-      setResultado(j as Resultado);
+      // Errores tempranos (auth, sin archivo) llegan como JSON, sin stream.
+      if (!r.ok || !r.body) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.error || `Error ${r.status}`);
+      }
+      // Respuesta NDJSON en vivo: líneas {progreso} por lote y una final {ok,…} o {error}.
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      let final: Resultado | null = null;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lineas = buf.split("\n");
+        buf = lineas.pop() ?? "";
+        for (const linea of lineas) {
+          if (!linea.trim()) continue;
+          const obj = JSON.parse(linea);
+          if (typeof obj.progreso === "number") {
+            setEstado(`Procesando… ${obj.progreso.toLocaleString("es-MX")} contratos escritos. No cierres esta pestaña.`);
+          } else if (obj.error) {
+            throw new Error(obj.error);
+          } else if (obj.ok) {
+            final = obj as Resultado;
+          }
+        }
+      }
+      if (!final) throw new Error("La carga se interrumpió antes de terminar. Vuelve a intentarlo: no se duplica.");
+      setResultado(final);
       setEstado("");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

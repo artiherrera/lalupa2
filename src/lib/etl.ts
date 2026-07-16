@@ -260,7 +260,13 @@ async function upsert(
  */
 export async function cargarCsv(
   input: Readable,
-  opts: { delimiter?: string; encoding?: BufferEncoding } = {},
+  opts: {
+    delimiter?: string;
+    encoding?: BufferEncoding;
+    // Se llama tras cada lote con el total de filas escritas hasta el momento.
+    // Sirve para emitir progreso en streaming y que el cliente no se rinda.
+    onProgress?: (procesados: number) => void;
+  } = {},
 ): Promise<ResultadoEtl> {
   const parser = input.pipe(
     parse({
@@ -291,6 +297,7 @@ export async function cargarCsv(
     duplicadas += lote.length - escritas; // filas colapsadas por clave repetida
     lotes++;
     lote = [];
+    opts.onProgress?.(total);
   };
 
   for await (const rec of parser as AsyncIterable<Record<string, string>>) {

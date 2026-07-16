@@ -24,24 +24,49 @@ export async function POST(req: NextRequest) {
   const esGzip =
     req.nextUrl.searchParams.get("gzip") === "1" ||
     req.headers.get("content-encoding") === "gzip";
-  try {
-    // request.body (web stream) -> Node stream para csv-parse
-    let stream: Readable = Readable.fromWeb(req.body as Parameters<typeof Readable.fromWeb>[0]);
-    // Si el cliente corta la conexión (recarga/cierra), el stream emite 'aborted'/
-    // ECONNRESET. Sin este listener se vuelve un uncaughtException que puede tumbar
-    // el server standalone en prod. Lo absorbemos: el error en curso ya lo captura
-    // el try/catch vía el rechazo del async-iterator.
-    stream.on("error", () => {});
-    if (esGzip) {
-      const gunzip = createGunzip();
-      gunzip.on("error", () => {}); // .gz corrupto: lo captura el try/catch al iterar
-      stream = stream.pipe(gunzip);
-    }
-    const res = await cargarCsv(stream, { delimiter, encoding });
-    return Response.json({ ok: true, ...res });
-  } catch (e) {
-    console.error("ETL error:", e);
-    const msg = e instanceof Error ? e.message : String(e);
-    return Response.json({ error: msg }, { status: 500 });
+
+  // request.body (web stream) -> Node stream para csv-parse
+  let stream: Readable = Readable.fromWeb(req.body as Parameters<typeof Readable.fromWeb>[0]);
+  // Si el cliente corta la conexión (recarga/cierra), el stream emite 'aborted'/
+  // ECONNRESET. Sin este listener se vuelve un uncaughtException que puede tumbar
+  // el server standalone en prod. Lo absorbemos: el error en curso ya lo captura
+  // el try/catch vía el rechazo del async-iterator.
+  stream.on("error", () => {});
+  if (esGzip) {
+    const gunzip = createGunzip();
+    gunzip.on("error", () => {}); // .gz corrupto: lo captura el try/catch al iterar
+    stream = stream.pipe(gunzip);
   }
+
+  // Respuesta en streaming (NDJSON): una línea {progreso} por lote y una final
+  // {ok,...} o {error}. Mantiene la conexión viva mientras el ETL procesa
+  // (que puede tardar minutos), así ni nginx ni el navegador se rinden.
+  const encoder = new TextEncoder();
+  const body = new ReadableStream({
+    async start(controller) {
+      const emitir = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+      try {
+        const res = await cargarCsv(stream, {
+          delimiter,
+          encoding,
+          onProgress: (procesados) => emitir({ progreso: procesados }),
+        });
+        emitir({ ok: true, ...res });
+      } catch (e) {
+        console.error("ETL error:", e);
+        emitir({ error: e instanceof Error ? e.message : String(e) });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(body, {
+    headers: {
+      "content-type": "application/x-ndjson; charset=utf-8",
+      // Le dice a nginx que NO bufferee esta respuesta (progreso en vivo).
+      "x-accel-buffering": "no",
+      "cache-control": "no-cache, no-transform",
+    },
+  });
 }
