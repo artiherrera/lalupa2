@@ -25,18 +25,13 @@ export async function POST(req: NextRequest) {
     req.nextUrl.searchParams.get("gzip") === "1" ||
     req.headers.get("content-encoding") === "gzip";
 
-  // request.body (web stream) -> Node stream para csv-parse
-  let stream: Readable = Readable.fromWeb(req.body as Parameters<typeof Readable.fromWeb>[0]);
-  // Si el cliente corta la conexión (recarga/cierra), el stream emite 'aborted'/
-  // ECONNRESET. Sin este listener se vuelve un uncaughtException que puede tumbar
-  // el server standalone en prod. Lo absorbemos: el error en curso ya lo captura
-  // el try/catch vía el rechazo del async-iterator.
-  stream.on("error", () => {});
-  if (esGzip) {
-    const gunzip = createGunzip();
-    gunzip.on("error", () => {}); // .gz corrupto: lo captura el try/catch al iterar
-    stream = stream.pipe(gunzip);
-  }
+  // Consumir TODO el cuerpo ANTES de responder. El ETL lee el archivo poco a poco
+  // (backpressure de los upserts lentos), y si leyéramos req.body directamente,
+  // Node vería la petición "recibiéndose" durante minutos y su requestTimeout
+  // (300s por defecto) cortaría la conexión ("upstream prematurely closed").
+  // Al bufferear aquí, nginx nos entrega el archivo a toda velocidad y la petición
+  // queda recibida en segundos; luego procesamos sin ese límite.
+  const bytes = Buffer.from(await req.arrayBuffer());
 
   // Respuesta en streaming (NDJSON): una línea {progreso} por lote y una final
   // {ok,...} o {error}. Mantiene la conexión viva mientras el ETL procesa
@@ -46,6 +41,12 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       const emitir = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
       try {
+        let stream: Readable = Readable.from(bytes);
+        if (esGzip) {
+          const gunzip = createGunzip();
+          gunzip.on("error", () => {}); // .gz corrupto: lo captura el try/catch al iterar
+          stream = stream.pipe(gunzip);
+        }
         const res = await cargarCsv(stream, {
           delimiter,
           encoding,
