@@ -41,6 +41,12 @@ systemctl restart lalupa2
 
 echo "== nginx (80 -> 3000) =="
 cat > /etc/nginx/conf.d/lalupa2.conf <<'NGINX'
+# Rate limiting por IP: frena bots/crawlers que martillan el sitio (una IP llegó
+# a hacer >90% de las peticiones, casi todas al costoso /api/report, y tumbaba la
+# app). Zona general amplia + zona estricta para el endpoint caro del PDF.
+limit_req_zone $binary_remote_addr zone=general:10m rate=20r/s;
+limit_req_zone $binary_remote_addr zone=reportes:10m rate=20r/m;
+
 server {
   listen 80 default_server;
   server_name _;
@@ -49,6 +55,23 @@ server {
   client_max_body_size 512m;
   # Tiempo para recibir el cuerpo del cliente (subida de 512m por red lenta).
   client_body_timeout 300s;
+
+  # Límite general (permite ráfagas de una carga de página normal).
+  limit_req zone=general burst=40 nodelay;
+  limit_req_status 429;
+
+  # /api/report genera PDFs escaneando miles de filas: límite duro (un humano lo
+  # usa de vez en cuando; un bot lo usa como ariete).
+  location /api/report {
+    limit_req zone=reportes burst=5 nodelay;
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 900s;
+    proxy_send_timeout 900s;
+  }
 
   location / {
     proxy_pass http://127.0.0.1:3000;

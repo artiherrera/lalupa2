@@ -13,10 +13,22 @@ export const pool: Pool =
     ssl: { rejectUnauthorized: false },
     max: 5,
     idleTimeoutMillis: 30_000,
-    // Sube work_mem para que el CTE materializado de la búsqueda (agrega todos
-    // los contratos que coinciden en una sola pasada) no se desborde a disco.
-    options: "-c work_mem=80MB",
+    // No esperar para siempre: si no se logra conexión en 10s, la consulta falla
+    // (y se reintenta) en vez de colgar la petición. Sin esto, un bache de la base
+    // envenenaba el pool y toda la app se quedaba colgada.
+    connectionTimeoutMillis: 10_000,
+    // work_mem alto para el CTE materializado de la búsqueda; statement_timeout
+    // corta consultas colgadas (p. ej. si la base se satura por abuso) para que el
+    // pool libere la conexión en vez de trabarse.
+    options: "-c work_mem=80MB -c statement_timeout=45000",
   });
+
+// Sin este manejador, un error en una conexión inactiva del pool se vuelve un
+// 'uncaughtException' que puede tumbar el proceso. Lo registramos; pg descarta la
+// conexión mala y crea otra sola.
+pool.on("error", (err) => {
+  console.error("pg pool error (conexión descartada):", err.message);
+});
 
 if (process.env.NODE_ENV !== "production") globalForPg.pgPool = pool;
 
