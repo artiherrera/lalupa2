@@ -73,8 +73,7 @@ Luego `@datos implementa docs/investigacion/specs/esquema-base.md` y `@revisor r
 
 La fase 0 completa (esquema + 69-B + primer cruce) es un fin de semana de trabajo con los agentes. La fase 1 (primer acta de principio a fin) es otro.
 
-## Dos cosas que tienes que decidir tú
+## Decisiones abiertas
 
-Están en `docs/investigacion/decisiones.md`, al final:
-- Cómo se conecta tu Mac a PostgreSQL en AWS (túnel SSH o IP permitida en el grupo de seguridad).
+- Conexión de la Mac a PostgreSQL en AWS: decidida, túnel de SSM a través de la EC2 (ver `docs/investigacion/decisiones.md`).
 - Qué modelo de Ollama usar; `ingesta` lo prueba con cinco actas reales y te reporta.
