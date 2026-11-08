@@ -2,7 +2,8 @@
 // .afm por fs (que el bundle standalone de Next podría no incluir).
 // @ts-expect-error -- subimport sin declaración propia; los tipos vienen de @types/pdfkit
 import PDFDocument from "pdfkit/js/pdfkit.standalone.js";
-import type { DatosInforme, Grupo } from "@/lib/contratos";
+import type { DatosInforme, Grupo, PorProcedimiento } from "@/lib/contratos";
+import { FAMILIAS_PROCEDIMIENTO } from "@/lib/fields";
 import type { FiltroDesc } from "@/lib/informe";
 import { fmtFecha, fmtMXN, fmtMXNCompacto, fmtNum } from "@/lib/format";
 
@@ -108,6 +109,76 @@ function barrasPorAnio(doc: Doc, d: DatosInforme) {
       .text(`${fmtMXNCompacto(a.total)} · ${fmtNum(a.n)} contr.`, trackX + trackW + 6, y + 2, { width: 150 - 6, lineBreak: false });
     doc.y = y + 16;
   }
+}
+
+// Barra 100% apilada (un segmento por familia) con su etiqueta encima.
+function barraApilada(doc: Doc, etiqueta: string, filas: PorProcedimiento[], valor: (f: PorProcedimiento) => number, total: number) {
+  const W = ancho(doc);
+  const h = 14;
+  doc.font("Helvetica-Bold").fontSize(6.5).fillColor(COL.s500).text(etiqueta.toUpperCase(), M, doc.y);
+  const y = doc.y + 2;
+  doc.save();
+  doc.roundedRect(M, y, W, h, 3).clip();
+  doc.rect(M, y, W, h).fill(COL.s100);
+  let x = M;
+  for (const f of filas) {
+    const v = valor(f);
+    if (v <= 0 || total <= 0) continue;
+    const w = (v / total) * W;
+    doc.rect(x, y, w, h).fill(FAMILIAS_PROCEDIMIENTO[f.familia].color);
+    if (w >= 34) {
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(7)
+        .fillColor(COL.white)
+        .text(pct(v, total), x, y + 4, { width: w, align: "center", lineBreak: false });
+    }
+    x += w;
+  }
+  doc.restore();
+  doc.y = y + h + 8;
+}
+
+function porProcedimiento(doc: Doc, d: DatosInforme) {
+  const filas = d.porProcedimiento;
+  if (!filas.length) return;
+  seccion(doc, "Por tipo de procedimiento");
+  // Que las barras y la tabla no se partan entre páginas.
+  if (doc.y + 70 + filas.length * 14 > limiteInf(doc)) doc.addPage();
+  barraApilada(doc, "Número de contratos", filas, (f) => f.n, d.n);
+  barraApilada(doc, "Importe", filas, (f) => f.total, d.total);
+
+  const W = ancho(doc);
+  const cw = { contratos: 60, pctN: 50, monto: 95, pctM: 50 };
+  const nombreW = W - cw.contratos - cw.pctN - cw.monto - cw.pctM;
+  const cx = {
+    nombre: M,
+    contratos: M + nombreW,
+    pctN: M + nombreW + cw.contratos,
+    monto: M + nombreW + cw.contratos + cw.pctN,
+    pctM: M + nombreW + cw.contratos + cw.pctN + cw.monto,
+  };
+  let y = doc.y;
+  doc.rect(M, y, W, 14).fill(COL.s100);
+  doc.fillColor(COL.s500).font("Helvetica-Bold").fontSize(6.5);
+  doc.text("PROCEDIMIENTO", cx.nombre + 4, y + 4, { width: nombreW - 4 });
+  doc.text("CONTRATOS", cx.contratos, y + 4, { width: cw.contratos, align: "right" });
+  doc.text("% CONTR.", cx.pctN, y + 4, { width: cw.pctN, align: "right" });
+  doc.text("MONTO", cx.monto, y + 4, { width: cw.monto, align: "right" });
+  doc.text("% MONTO", cx.pctM, y + 4, { width: cw.pctM, align: "right" });
+  y += 16;
+  filas.forEach((f, i) => {
+    const fam = FAMILIAS_PROCEDIMIENTO[f.familia];
+    if (i % 2 === 1) doc.rect(M, y - 1, W, 13).fill(COL.s50);
+    doc.roundedRect(cx.nombre + 4, y + 2, 7, 7, 1.5).fill(fam.color);
+    doc.font("Helvetica").fontSize(8).fillColor(COL.ink).text(fam.label, cx.nombre + 16, y + 1, { width: nombreW - 20, lineBreak: false });
+    doc.text(fmtNum(f.n), cx.contratos, y + 1, { width: cw.contratos, align: "right", lineBreak: false });
+    doc.fillColor(COL.s500).text(pct(f.n, d.n), cx.pctN, y + 1, { width: cw.pctN, align: "right", lineBreak: false });
+    doc.font("Helvetica-Bold").fillColor(COL.ink).text(fmtMXN(f.total), cx.monto, y + 1, { width: cw.monto, align: "right", lineBreak: false });
+    doc.font("Helvetica").fillColor(COL.s500).text(pct(f.total, d.total), cx.pctM, y + 1, { width: cw.pctM, align: "right", lineBreak: false });
+    y += 13;
+  });
+  doc.y = y;
 }
 
 function tablaGrupos(doc: Doc, titulo: string, nombreCol: string, grupos: Grupo[], totalGeneral: number, conRfc: boolean) {
@@ -275,6 +346,7 @@ export function generarInforme(datos: DatosInforme, filtros: FiltroDesc[], sello
       parametros(doc, filtros);
       resumen(doc, datos);
       barrasPorAnio(doc, datos);
+      porProcedimiento(doc, datos);
       tablaGrupos(
         doc,
         `Instituciones${datos.nInstituciones > datos.instituciones.length ? ` (top ${datos.instituciones.length} de ${fmtNum(datos.nInstituciones)})` : ""}`,

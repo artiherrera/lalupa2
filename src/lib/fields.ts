@@ -64,6 +64,20 @@ export const PROCEDIMIENTOS = [
   { value: "entes", label: "Entre entes públicos", patron: "%ENTES P%" },
 ] as const;
 
+/** Familia de procedimiento de un contrato: una de PROCEDIMIENTOS, "otros" o "sin_dato". */
+export type FamiliaProcedimiento = (typeof PROCEDIMIENTOS)[number]["value"] | "otros" | "sin_dato";
+
+// Etiqueta y color de cada familia (los mismos en la página y en el PDF).
+// Adjudicación directa va en ámbar porque es la que se suele vigilar.
+export const FAMILIAS_PROCEDIMIENTO: Record<FamiliaProcedimiento, { label: string; color: string }> = {
+  adjudicacion: { label: "Adjudicación directa", color: "#f59e0b" },
+  licitacion: { label: "Licitación pública", color: "#6366f1" },
+  invitacion: { label: "Invitación a 3 personas", color: "#14b8a6" },
+  entes: { label: "Entre entes públicos", color: "#8b5cf6" },
+  otros: { label: "Otros", color: "#94a3b8" },
+  sin_dato: { label: "Sin dato", color: "#cbd5e1" },
+};
+
 export const ESTATUS = [
   "EXPIRADO",
   "PUBLICADO",

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { buscar, type Grupo, type ParamsBusqueda } from "@/lib/contratos";
+import { buscar, type Grupo, type ParamsBusqueda, type PorProcedimiento } from "@/lib/contratos";
 import { registrarBusqueda } from "@/lib/metricas";
-import { ORDENES } from "@/lib/fields";
+import { FAMILIAS_PROCEDIMIENTO, ORDENES, PROCEDIMIENTOS } from "@/lib/fields";
 import { fmtFecha, fmtMXN, fmtMXNCompacto, fmtNum } from "@/lib/format";
 import { hrefCon } from "@/lib/searchParams";
 
@@ -66,6 +66,99 @@ function GrupoPanel({
           </li>
         ))}
       </ol>
+    </section>
+  );
+}
+
+const fmtPct = (part: number, whole: number) =>
+  whole > 0 ? `${((part / whole) * 100).toLocaleString("es-MX", { maximumFractionDigits: 1 })}%` : "—";
+
+// Barra 100% apilada: un segmento por familia, en el orden de la lista.
+function BarraApilada({
+  etiqueta,
+  filas,
+  valor,
+  total,
+  fmt,
+}: {
+  etiqueta: string;
+  filas: PorProcedimiento[];
+  valor: (f: PorProcedimiento) => number;
+  total: number;
+  fmt: (v: number) => string;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{etiqueta}</div>
+      <div className="flex h-7 overflow-hidden rounded-md bg-slate-100 dark:bg-slate-800" role="img" aria-label={etiqueta}>
+        {filas.map((f) => {
+          const v = valor(f);
+          if (v <= 0 || total <= 0) return null;
+          const fam = FAMILIAS_PROCEDIMIENTO[f.familia];
+          const ancho = (v / total) * 100;
+          return (
+            <div
+              key={f.familia}
+              className="flex h-full items-center justify-center border-r border-white/60 last:border-r-0 dark:border-slate-900/60"
+              style={{ width: `${ancho}%`, backgroundColor: fam.color }}
+              title={`${fam.label}: ${fmt(v)} (${fmtPct(v, total)})`}
+            >
+              {ancho >= 9 && <span className="text-[11px] font-semibold text-white">{fmtPct(v, total)}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ProcedimientoPanel({ filas, n, total, p }: { filas: PorProcedimiento[]; n: number; total: number; p: ParamsBusqueda }) {
+  const filtrables = new Set<string>(PROCEDIMIENTOS.map((x) => x.value));
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+      <h2 className="mb-4 text-sm font-semibold">Por tipo de procedimiento</h2>
+      <div className="flex flex-col gap-4">
+        <BarraApilada etiqueta="Número de contratos" filas={filas} valor={(f) => f.n} total={n} fmt={fmtNum} />
+        <BarraApilada etiqueta="Importe" filas={filas} valor={(f) => f.total} total={total} fmt={fmtMXNCompacto} />
+      </div>
+      <ul className="mt-5 divide-y divide-slate-50 dark:divide-slate-800/60">
+        {filas.map((f) => {
+          const fam = FAMILIAS_PROCEDIMIENTO[f.familia];
+          const nombre = (
+            <span className="flex min-w-0 items-center gap-2.5">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: fam.color }} aria-hidden />
+              <span className="truncate text-sm font-medium text-slate-700 group-hover:text-indigo-600 dark:text-slate-200 dark:group-hover:text-indigo-400">
+                {fam.label}
+              </span>
+            </span>
+          );
+          return (
+            <li key={f.familia} className="flex items-center justify-between gap-4 py-2.5">
+              {filtrables.has(f.familia) ? (
+                <Link
+                  href={hrefCon(p, { proc: [f.familia], pagina: null })}
+                  className="group min-w-0"
+                  title={`Ver solo ${fam.label.toLowerCase()}`}
+                >
+                  {nombre}
+                </Link>
+              ) : (
+                nombre
+              )}
+              <span className="flex shrink-0 items-baseline gap-4 text-right tabular-nums">
+                <span className="w-28">
+                  <span className="text-sm font-semibold">{fmtNum(f.n)}</span>
+                  <span className="ml-1.5 text-xs text-slate-400">{fmtPct(f.n, n)}</span>
+                </span>
+                <span className="hidden w-32 sm:inline">
+                  <span className="text-sm font-semibold">{fmtMXNCompacto(f.total)}</span>
+                  <span className="ml-1.5 text-xs text-slate-400">{fmtPct(f.total, total)}</span>
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
@@ -162,6 +255,11 @@ export async function Resultados({ p }: { p: ParamsBusqueda }) {
             ))}
           </div>
         </section>
+      )}
+
+      {/* Por tipo de procedimiento */}
+      {data.porProcedimiento.length > 0 && (
+        <ProcedimientoPanel filas={data.porProcedimiento} n={data.n} total={data.total} p={p} />
       )}
 
       {/* Proveedores e instituciones */}

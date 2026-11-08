@@ -1,5 +1,5 @@
 import { query } from "./db";
-import { type Ambito, type Orden, PROCEDIMIENTOS } from "./fields";
+import { type Ambito, type FamiliaProcedimiento, type Orden, PROCEDIMIENTOS } from "./fields";
 
 export const POR_PAGINA = 50;
 const TOP_GRUPOS = 100; // máx. proveedores/instituciones que devolvemos por búsqueda
@@ -38,6 +38,12 @@ export interface PorAnio {
   total: number;
 }
 
+export interface PorProcedimiento {
+  familia: FamiliaProcedimiento;
+  n: number;
+  total: number;
+}
+
 export interface Contrato {
   codigo_contrato: string | null;
   titulo_contrato: string | null;
@@ -65,6 +71,7 @@ export interface Resultado {
   nProveedores: number;
   nInstituciones: number;
   porAnio: PorAnio[];
+  porProcedimiento: PorProcedimiento[];
   proveedores: Grupo[];
   instituciones: Grupo[];
   resultados: Contrato[];
@@ -81,6 +88,25 @@ const ORDEN_SQL: Record<Orden, string> = {
   agregado_desc: "created_at DESC NULLS LAST",
   agregado_asc: "created_at ASC NULLS LAST",
 };
+
+// Expresión CASE que asigna cada contrato a su familia de procedimiento, con los
+// mismos patrones que el filtro "Procedimiento". Las familias no se traslapan
+// (todas son prefijos distintos salvo "%ENTES P%", que solo aparece como
+// "ENTRE ENTES PÚBLICOS"), así que cada contrato cae en una sola.
+// Los patrones son constantes del código, no entrada del usuario.
+const FAMILIA_PROCEDIMIENTO_SQL = `CASE
+        WHEN nullif(btrim(tipo_procedimiento), '') IS NULL THEN 'sin_dato'
+${PROCEDIMIENTOS.map((x) => `        WHEN tipo_procedimiento LIKE '${x.patron.replace(/'/g, "''")}' THEN '${x.value}'`).join("\n")}
+        ELSE 'otros'
+      END`;
+
+// Subconsulta (sobre el CTE m) con el desglose por familia: de mayor a menor número
+// de contratos, con "Otros" y "Sin dato" siempre al final.
+const POR_PROCEDIMIENTO_SQL = `(SELECT json_agg(x) FROM (
+         SELECT familia, count(*)::int AS n, coalesce(sum(importe), 0)::float8 AS total
+           FROM (SELECT ${FAMILIA_PROCEDIMIENTO_SQL} AS familia, importe FROM m) f
+          GROUP BY familia ORDER BY familia IN ('otros', 'sin_dato'), familia = 'sin_dato', count(*) DESC
+       ) x)`;
 
 // Condición full-text según el ámbito. `idx` es el número de parámetro ($n) del
 // término. Cada ámbito usa el índice GIN por-campo correspondiente; 'todo' usa
@@ -204,6 +230,7 @@ interface FilaBundle {
   n_proveedores: number;
   n_instituciones: number;
   por_anio: PorAnio[] | null;
+  por_procedimiento: PorProcedimiento[] | null;
   proveedores: Grupo[] | null;
   instituciones: Grupo[] | null;
   resultados: Contrato[] | null;
@@ -238,6 +265,7 @@ export async function buscar(p: ParamsBusqueda): Promise<Resultado> {
          SELECT anio_fuente AS anio, count(*)::int AS n, coalesce(sum(importe), 0)::float8 AS total
            FROM m GROUP BY anio_fuente ORDER BY anio_fuente
        ) x) AS por_anio,
+      ${POR_PROCEDIMIENTO_SQL} AS por_procedimiento,
       (SELECT json_agg(x) FROM (
          SELECT proveedor_contratista AS clave,
                 min(rfc) FILTER (WHERE rfc IS NOT NULL AND btrim(rfc) <> '') AS rfc,
@@ -271,6 +299,7 @@ export async function buscar(p: ParamsBusqueda): Promise<Resultado> {
     nProveedores: r.n_proveedores,
     nInstituciones: r.n_instituciones,
     porAnio: r.por_anio ?? [],
+    porProcedimiento: r.por_procedimiento ?? [],
     proveedores: r.proveedores ?? [],
     instituciones: r.instituciones ?? [],
     resultados: r.resultados ?? [],
@@ -292,6 +321,7 @@ export interface DatosInforme {
   nProveedores: number;
   nInstituciones: number;
   porAnio: PorAnio[];
+  porProcedimiento: PorProcedimiento[];
   proveedores: Grupo[];
   instituciones: Grupo[];
   contratos: Contrato[];
@@ -305,6 +335,7 @@ interface FilaInforme {
   n_proveedores: number;
   n_instituciones: number;
   por_anio: PorAnio[] | null;
+  por_procedimiento: PorProcedimiento[] | null;
   proveedores: Grupo[] | null;
   instituciones: Grupo[] | null;
   contratos: Contrato[] | null;
@@ -337,6 +368,7 @@ export async function datosInforme(p: ParamsBusqueda): Promise<DatosInforme> {
          SELECT anio_fuente AS anio, count(*)::int AS n, coalesce(sum(importe), 0)::float8 AS total
            FROM m GROUP BY anio_fuente ORDER BY anio_fuente
        ) x) AS por_anio,
+      ${POR_PROCEDIMIENTO_SQL} AS por_procedimiento,
       (SELECT json_agg(x) FROM (
          SELECT proveedor_contratista AS clave,
                 min(rfc) FILTER (WHERE rfc IS NOT NULL AND btrim(rfc) <> '') AS rfc,
@@ -370,6 +402,7 @@ export async function datosInforme(p: ParamsBusqueda): Promise<DatosInforme> {
     nProveedores: r.n_proveedores,
     nInstituciones: r.n_instituciones,
     porAnio: r.por_anio ?? [],
+    porProcedimiento: r.por_procedimiento ?? [],
     proveedores: r.proveedores ?? [],
     instituciones: r.instituciones ?? [],
     contratos: r.contratos ?? [],
