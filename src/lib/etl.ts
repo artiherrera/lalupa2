@@ -2,7 +2,10 @@ import { parse } from "csv-parse";
 import type { Readable } from "node:stream";
 import { pool } from "./db";
 
-// Columnas de la tabla que aceptamos del CSV (created_at y search_vector se generan solos).
+// Columnas de la tabla que aceptamos del CSV. search_vector se genera solo; created_at
+// (fecha de alta en la plataforma) toma now() salvo que el CSV la traiga, como los
+// históricos de etl/convertir_historicos.py, que entran como parte del archivo base
+// para no aparecer en /nuevos.
 const TEXT_COLS = [
   "caracter_procedimiento", "clave_cartera_shcp", "clave_programa_federal", "clave_uc",
   "codigo_contrato", "codigo_expediente", "compra_consolidada", "contrato_marco",
@@ -14,6 +17,7 @@ const TEXT_COLS = [
   "titulo_expediente", "anio_fuente", "moneda_norm",
 ];
 const DATE_COLS = [
+  "created_at",
   "fecha_apertura", "fecha_fallo", "fecha_fin_contrato", "fecha_firma_contrato",
   "fecha_inicio_contrato", "fecha_publicacion",
 ];
