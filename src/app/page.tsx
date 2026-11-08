@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { hayBusqueda, mesesDeAlta } from "@/lib/contratos";
+import { fmtNum } from "@/lib/format";
 import { parseParams, type SearchParams } from "@/lib/searchParams";
 import { SearchForm } from "./_components/SearchForm";
 import { Resultados } from "./_components/Resultados";
@@ -77,7 +78,9 @@ export default async function Home({
               </span>
               Nuevos contratos
             </Link>
-            <span className="hidden text-sm text-slate-400 sm:block">1,045,445 contratos · CompraNet</span>
+            <span className="hidden text-sm text-slate-400 sm:block">
+              {fmtNum(meses.reduce((t, m) => t + m.n, 0))} contratos · CompraNet
+            </span>
           </nav>
         </div>
       </header>
