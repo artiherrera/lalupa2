@@ -16,18 +16,20 @@ function Facet({
   name,
   opciones,
   seleccion,
+  columnas = false,
 }: {
   titulo: string;
   name: string;
   opciones: { value: string; label: string }[];
   seleccion: string[];
+  columnas?: boolean; // opciones cortas (años) en rejilla de 3 en vez de lista
 }) {
   return (
     <fieldset className="min-w-0">
       <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
         {titulo}
       </legend>
-      <div className="flex flex-col gap-1">
+      <div className={columnas ? "grid grid-cols-3 gap-x-1 gap-y-0.5" : "flex flex-col gap-1"}>
         {opciones.map((o) => (
           <label
             key={o.value}
@@ -202,7 +204,7 @@ export function SearchForm({
         </summary>
 
         <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-5 rounded-xl border border-slate-100 bg-slate-50/50 p-4 sm:grid-cols-3 lg:grid-cols-4 dark:border-slate-800 dark:bg-slate-800/20">
-          <Facet titulo="Año" name="anio" opciones={ANIOS.map((v) => ({ value: v, label: v }))} seleccion={p.anios} />
+          <Facet titulo="Año" name="anio" opciones={ANIOS.map((v) => ({ value: v, label: v }))} seleccion={p.anios} columnas />
           <Facet titulo="Tipo" name="tipo" opciones={titulizar(TIPOS_CONTRATACION)} seleccion={p.tiposContratacion} />
           <Facet
             titulo="Procedimiento"

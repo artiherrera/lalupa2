@@ -3,7 +3,7 @@
 // @ts-expect-error -- subimport sin declaración propia; los tipos vienen de @types/pdfkit
 import PDFDocument from "pdfkit/js/pdfkit.standalone.js";
 import type { DatosInforme, Grupo, PorProcedimiento } from "@/lib/contratos";
-import { FAMILIAS_PROCEDIMIENTO } from "@/lib/fields";
+import { ANIOS_SOLO_EXCEPCION, AVISO_EXCEPCION, FAMILIAS_PROCEDIMIENTO } from "@/lib/fields";
 import type { FiltroDesc } from "@/lib/informe";
 import { fmtFecha, fmtMXN, fmtMXNCompacto, fmtNum } from "@/lib/format";
 
@@ -145,6 +145,14 @@ function porProcedimiento(doc: Doc, d: DatosInforme) {
   seccion(doc, "Por tipo de procedimiento");
   // Que las barras y la tabla no se partan entre páginas.
   if (doc.y + 70 + filas.length * 14 > limiteInf(doc)) doc.addPage();
+  if (d.porAnio.some((a) => a.anio != null && ANIOS_SOLO_EXCEPCION.includes(a.anio))) {
+    const W0 = ancho(doc);
+    doc.font("Helvetica").fontSize(7.5);
+    const h = doc.heightOfString(AVISO_EXCEPCION, { width: W0 - 14 });
+    doc.roundedRect(M, doc.y, W0, h + 10, 4).fill("#fffbeb");
+    doc.fillColor("#92400e").text(AVISO_EXCEPCION, M + 7, doc.y + 5, { width: W0 - 14 });
+    doc.y += 10;
+  }
   barraApilada(doc, "Número de contratos", filas, (f) => f.n, d.n);
   barraApilada(doc, "Importe", filas, (f) => f.total, d.total);
 

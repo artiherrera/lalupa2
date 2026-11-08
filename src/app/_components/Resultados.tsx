@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { buscar, type Grupo, type ParamsBusqueda, type PorProcedimiento } from "@/lib/contratos";
 import { registrarBusqueda } from "@/lib/metricas";
-import { FAMILIAS_PROCEDIMIENTO, ORDENES, PROCEDIMIENTOS } from "@/lib/fields";
+import { ANIOS_SOLO_EXCEPCION, AVISO_EXCEPCION, FAMILIAS_PROCEDIMIENTO, ORDENES, PROCEDIMIENTOS } from "@/lib/fields";
 import { fmtFecha, fmtMXN, fmtMXNCompacto, fmtNum } from "@/lib/format";
 import { hrefCon } from "@/lib/searchParams";
 
@@ -112,11 +112,28 @@ function BarraApilada({
   );
 }
 
-function ProcedimientoPanel({ filas, n, total, p }: { filas: PorProcedimiento[]; n: number; total: number; p: ParamsBusqueda }) {
+function ProcedimientoPanel({
+  filas,
+  n,
+  total,
+  p,
+  aviso,
+}: {
+  filas: PorProcedimiento[];
+  n: number;
+  total: number;
+  p: ParamsBusqueda;
+  aviso: boolean;
+}) {
   const filtrables = new Set<string>(PROCEDIMIENTOS.map((x) => x.value));
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
       <h2 className="mb-4 text-sm font-semibold">Por tipo de procedimiento</h2>
+      {aviso && (
+        <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
+          {AVISO_EXCEPCION}
+        </p>
+      )}
       <div className="flex flex-col gap-4">
         <BarraApilada etiqueta="Número de contratos" filas={filas} valor={(f) => f.n} total={n} fmt={fmtNum} />
         <BarraApilada etiqueta="Importe" filas={filas} valor={(f) => f.total} total={total} fmt={fmtMXNCompacto} />
@@ -259,7 +276,13 @@ export async function Resultados({ p }: { p: ParamsBusqueda }) {
 
       {/* Por tipo de procedimiento */}
       {data.porProcedimiento.length > 0 && (
-        <ProcedimientoPanel filas={data.porProcedimiento} n={data.n} total={data.total} p={p} />
+        <ProcedimientoPanel
+          filas={data.porProcedimiento}
+          n={data.n}
+          total={data.total}
+          p={p}
+          aviso={data.porAnio.some((a) => a.anio != null && ANIOS_SOLO_EXCEPCION.includes(a.anio))}
+        />
       )}
 
       {/* Proveedores e instituciones */}

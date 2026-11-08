@@ -44,7 +44,16 @@ export function etiquetaMes(mes: string): string {
   return i >= 0 && i < 12 ? `${MESES_ES[i]} ${y}` : mes;
 }
 
-export const ANIOS = ["2026", "2025", "2024", "2023", "2022", "2021", "2020", "2019"];
+// 2019–2026: datos abiertos de CompraNet/ComprasMX. 2006–2018: archivos históricos
+// de CompraNet, cargados con etl/convertir_historicos.py.
+export const ANIOS = Array.from({ length: 2026 - 2006 + 1 }, (_, i) => String(2026 - i));
+
+// Años en que la base solo tiene contrataciones por EXCEPCIÓN a la licitación
+// (adjudicaciones directas e invitaciones a 3): los reportes "EX" de CompraNet. Las
+// licitaciones de esos años no están, así que el desglose por procedimiento se sesga.
+export const ANIOS_SOLO_EXCEPCION = ["2006", "2007", "2008", "2009", "2010"];
+export const AVISO_EXCEPCION =
+  "De 2006 a 2010 CompraNet solo publicó las contrataciones por excepción a la licitación (adjudicaciones directas e invitaciones a 3 personas). Las licitaciones públicas de esos años no están en la base, así que en esos años la adjudicación directa aparece sobrerrepresentada.";
 
 export const TIPOS_CONTRATACION = [
   "ADQUISICIONES",
