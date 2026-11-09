@@ -68,7 +68,12 @@ const ALIAS: Record<string, string> = {
   direccion_del_anuncio: "direccion_anuncio",
 };
 
-const LOTE = 1000; // filas por upsert (≈40k parámetros, bajo el límite de Postgres)
+// Filas por upsert. Con ~28 índices y la tabla en millones de filas, cada lote de
+// 1000 llegó a tardar más de 45 s en la RDS t4g.micro; 500 mantiene cada sentencia corta.
+const LOTE = 500;
+// Límite por lote de la carga. El pool usa 45 s (pensado para búsquedas); un upsert
+// grande puede tardar más cuando el disco está ocupado, y abortarlo deja la carga a medias.
+const TIMEOUT_LOTE = "5min";
 
 const cleanText = (v: unknown): string | null => {
   if (v == null) return null;
@@ -252,7 +257,21 @@ async function upsert(
   const sql =
     `INSERT INTO contratos.contratos (${cols.join(",")}) VALUES ${tuplas.join(",")} ` +
     `ON CONFLICT (${CONFLICT.join(",")}) ${onConflict} RETURNING (xmax = 0) AS inserted`;
-  const res = await pool.query<{ inserted: boolean }>(sql, params);
+  // SET LOCAL solo vale dentro de la transacción: la conexión vuelve al pool con
+  // el límite normal de 45 s para las búsquedas.
+  const client = await pool.connect();
+  let res;
+  try {
+    await client.query("BEGIN");
+    await client.query(`SET LOCAL statement_timeout = '${TIMEOUT_LOTE}'`);
+    res = await client.query<{ inserted: boolean }>(sql, params);
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
   const nuevos = res.rows.reduce((n, r) => n + (r.inserted ? 1 : 0), 0);
   return { escritas: unicas.length, nuevos };
 }
