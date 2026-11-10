@@ -306,6 +306,9 @@ function bloquesContratos(doc: Doc, d: DatosInforme) {
       }
     }
 
+    // Número que le da la dependencia (el que suelen citar oficios y notas)
+    if (c.num_contrato) campo(doc, "Núm. de contrato:  ", c.num_contrato, sx, sw);
+
     // Descripción completa
     if (c.descripcion_contrato && c.descripcion_contrato.trim() && c.descripcion_contrato !== c.titulo_contrato) {
       doc.moveDown(0.15);

@@ -46,6 +46,7 @@ export interface PorProcedimiento {
 
 export interface Contrato {
   codigo_contrato: string | null;
+  num_contrato: string | null; // número que le da la dependencia (p. ej. FTM/PTM/LP/005/2024)
   titulo_contrato: string | null;
   descripcion_contrato: string | null;
   proveedor_contratista: string | null;
@@ -108,6 +109,18 @@ const POR_PROCEDIMIENTO_SQL = `(SELECT json_agg(x) FROM (
           GROUP BY familia ORDER BY familia IN ('otros', 'sin_dato'), familia = 'sin_dato', count(*) DESC
        ) x)`;
 
+// Búsqueda por número de contrato o de procedimiento. Las dependencias escriben el
+// mismo número con guiones, diagonales o espacios ("FTM-SEN/PTM/LP/010/2023" vs
+// "FTM/SEN/PTM/LP/010/2023"), así que se compara sin nada que no sea letra o dígito.
+// La expresión es idéntica a la de los índices de db-migration/12_numero_contrato_index.sql;
+// si cambia aquí, hay que cambiarla allá o la consulta deja de usar el índice.
+const COLUMNAS_NUMERO = ["num_contrato", "numero_procedimiento", "referencia_expediente"] as const;
+const numeroNormalizadoSql = (col: string) => `regexp_replace(upper(${col}), '[^A-Z0-9]', '', 'g')`;
+/** Mismo resultado que numeroNormalizadoSql, del lado de la app. */
+export const normalizarNumero = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+// Con menos caracteres el prefijo traería medio catálogo.
+const MIN_NUMERO = 4;
+
 // Condición full-text según el ámbito. `idx` es el número de parámetro ($n) del
 // término. Cada ámbito usa el índice GIN por-campo correspondiente; 'todo' usa
 // la columna generada search_vector. Siempre sin acentos (immutable_unaccent) y
@@ -130,6 +143,13 @@ function ftsCondicion(ambito: Ambito, idx: number): string {
     case "rfc":
       // RFC es un identificador exacto: igualdad sobre el índice btree idx_contratos_rfc.
       return `rfc = upper(btrim($${idx}))`;
+    case "numero":
+      // $idx ya viene normalizado y con '%' al final (ver construirWhere): coincide el
+      // número completo o su principio ("FTM/PTM/LP" trae todas esas licitaciones).
+      // $idx+1 es el término tal cual, para el código numérico de CompraNet
+      // (igualdad sobre idx_contrato_compuesto).
+      return `(${COLUMNAS_NUMERO.map((c) => `${numeroNormalizadoSql(c)} LIKE $${idx}`).join(" OR ")}
+        OR codigo_contrato = btrim($${idx + 1}))`;
     default:
       return `search_vector @@ ${tsq}`;
   }
@@ -142,7 +162,12 @@ function construirWhere(p: ParamsBusqueda): { sql: string; params: unknown[] } {
   const params: unknown[] = [];
   const termino = p.q.trim();
 
-  if (termino) {
+  if (termino && p.ambito === "numero") {
+    const num = normalizarNumero(termino);
+    // Un número demasiado corto no filtra nada útil: solo se acepta como código exacto.
+    params.push(num.length >= MIN_NUMERO ? `${num}%` : "-", termino); // $1, $2
+    conds.push(ftsCondicion(p.ambito, 1));
+  } else if (termino) {
     params.push(termino); // $1
     conds.push(ftsCondicion(p.ambito, params.length));
   }
@@ -248,7 +273,7 @@ export async function buscar(p: ParamsBusqueda): Promise<Resultado> {
 
   const sql = `
     WITH m AS MATERIALIZED (
-      SELECT codigo_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
+      SELECT codigo_contrato, num_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
              institucion, siglas_institucion, importe, moneda_norm, anio_fuente,
              fecha_publicacion, estatus_contrato, tipo_contratacion, tipo_procedimiento,
              direccion_anuncio, rfc, anio_fundacion_empresa, created_at
@@ -281,7 +306,7 @@ export async function buscar(p: ParamsBusqueda): Promise<Resultado> {
           LIMIT ${TOP_GRUPOS}
        ) x) AS instituciones,
       (SELECT json_agg(x) FROM (
-         SELECT codigo_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
+         SELECT codigo_contrato, num_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
                 institucion, siglas_institucion, importe, moneda_norm, anio_fuente,
                 fecha_publicacion, estatus_contrato, tipo_contratacion, tipo_procedimiento,
                 direccion_anuncio, anio_fundacion_empresa, rfc, created_at
@@ -351,7 +376,7 @@ export async function datosInforme(p: ParamsBusqueda): Promise<DatosInforme> {
 
   const sql = `
     WITH m AS MATERIALIZED (
-      SELECT codigo_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
+      SELECT codigo_contrato, num_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
              institucion, siglas_institucion, importe, moneda_norm, anio_fuente,
              fecha_publicacion, estatus_contrato, tipo_contratacion, tipo_procedimiento,
              direccion_anuncio, rfc, anio_fundacion_empresa, created_at
@@ -384,7 +409,7 @@ export async function datosInforme(p: ParamsBusqueda): Promise<DatosInforme> {
           LIMIT ${INFORME_MAX_GRUPOS}
        ) x) AS instituciones,
       (SELECT json_agg(x) FROM (
-         SELECT codigo_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
+         SELECT codigo_contrato, num_contrato, titulo_contrato, descripcion_contrato, proveedor_contratista,
                 institucion, siglas_institucion, importe, moneda_norm, anio_fuente,
                 fecha_publicacion, estatus_contrato, tipo_contratacion, tipo_procedimiento,
                 direccion_anuncio, anio_fundacion_empresa, rfc, created_at

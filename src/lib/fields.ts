@@ -8,7 +8,8 @@ export type Ambito =
   | "titulo"
   | "descripcion"
   | "institucion"
-  | "rfc";
+  | "rfc"
+  | "numero";
 
 export const AMBITOS: { value: Ambito; label: string; hint: string }[] = [
   { value: "todo", label: "Todo", hint: "proveedor, institución, título y descripción" },
@@ -21,6 +22,11 @@ export const AMBITOS: { value: Ambito; label: string; hint: string }[] = [
     hint: "el nombre o las siglas de la dependencia (p. ej. SEDENA o Secretaría de la Defensa)",
   },
   { value: "rfc", label: "RFC", hint: "el RFC exacto del proveedor" },
+  {
+    value: "numero",
+    label: "Núm. de contrato",
+    hint: "el número del contrato o del procedimiento (p. ej. FTM/PTM/LP/005/2024); da igual si lleva guiones o diagonales",
+  },
 ];
 
 export const ORDENES = [

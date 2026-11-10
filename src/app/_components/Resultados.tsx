@@ -333,6 +333,7 @@ export async function Resultados({ p }: { p: ParamsBusqueda }) {
                   </p>
                   <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
                     <span className="font-medium text-slate-500">{c.siglas_institucion || c.institucion || "—"}</span>
+                    {c.num_contrato && <span className="font-mono">· {c.num_contrato}</span>}
                     {c.tipo_contratacion && <span>· {c.tipo_contratacion.toLowerCase()}</span>}
                     {c.anio_fuente && <span>· {c.anio_fuente}</span>}
                     {c.fecha_publicacion && <span>· {fmtFecha(c.fecha_publicacion)}</span>}
