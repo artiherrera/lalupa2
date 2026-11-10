@@ -120,6 +120,36 @@ const numeroNormalizadoSql = (col: string) => `regexp_replace(upper(${col}), '[^
 export const normalizarNumero = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
 // Con menos caracteres el prefijo traería medio catálogo.
 const MIN_NUMERO = 4;
+// Tope de números por búsqueda: cada uno agrega tres condiciones al WHERE.
+const MAX_NUMEROS = 20;
+// Varios números en una sola búsqueda: "A or B", "A o B", "A, B", "A; B" o uno por línea.
+// Los espacios sueltos no separan, porque hay quien escribe "FTM PTM AD 006 2024".
+const SEPARADOR_NUMEROS = /\s+(?:or|o)\s+|[,;\n]+/i;
+
+/**
+ * Condición para el ámbito "numero". Cada número se compara normalizado y por su
+ * principio ("FTM/PTM/LP" trae todas esas licitaciones) contra las tres columnas
+ * indexadas; además, tal cual, contra el código numérico de CompraNet (igualdad
+ * sobre idx_contrato_compuesto). Un parámetro por número: así el planificador ve
+ * cada prefijo como constante y usa los índices (con LIKE ANY(arreglo) no los usa).
+ */
+function condicionNumero(termino: string, params: unknown[]): string {
+  const crudos = termino
+    .split(SEPARADOR_NUMEROS)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, MAX_NUMEROS);
+  const conds: string[] = [];
+  for (const num of new Set(crudos.map(normalizarNumero))) {
+    if (num.length < MIN_NUMERO) continue; // demasiado corto: solo vale como código exacto
+    params.push(`${num}%`);
+    const i = params.length;
+    conds.push(...COLUMNAS_NUMERO.map((c) => `${numeroNormalizadoSql(c)} LIKE $${i}`));
+  }
+  params.push(crudos);
+  conds.push(`codigo_contrato = ANY($${params.length}::text[])`);
+  return `(${conds.join("\n        OR ")})`;
+}
 
 // Condición full-text según el ámbito. `idx` es el número de parámetro ($n) del
 // término. Cada ámbito usa el índice GIN por-campo correspondiente; 'todo' usa
@@ -143,13 +173,6 @@ function ftsCondicion(ambito: Ambito, idx: number): string {
     case "rfc":
       // RFC es un identificador exacto: igualdad sobre el índice btree idx_contratos_rfc.
       return `rfc = upper(btrim($${idx}))`;
-    case "numero":
-      // $idx ya viene normalizado y con '%' al final (ver construirWhere): coincide el
-      // número completo o su principio ("FTM/PTM/LP" trae todas esas licitaciones).
-      // $idx+1 es el término tal cual, para el código numérico de CompraNet
-      // (igualdad sobre idx_contrato_compuesto).
-      return `(${COLUMNAS_NUMERO.map((c) => `${numeroNormalizadoSql(c)} LIKE $${idx}`).join(" OR ")}
-        OR codigo_contrato = btrim($${idx + 1}))`;
     default:
       return `search_vector @@ ${tsq}`;
   }
@@ -163,10 +186,7 @@ function construirWhere(p: ParamsBusqueda): { sql: string; params: unknown[] } {
   const termino = p.q.trim();
 
   if (termino && p.ambito === "numero") {
-    const num = normalizarNumero(termino);
-    // Un número demasiado corto no filtra nada útil: solo se acepta como código exacto.
-    params.push(num.length >= MIN_NUMERO ? `${num}%` : "-", termino); // $1, $2
-    conds.push(ftsCondicion(p.ambito, 1));
+    conds.push(condicionNumero(termino, params));
   } else if (termino) {
     params.push(termino); // $1
     conds.push(ftsCondicion(p.ambito, params.length));

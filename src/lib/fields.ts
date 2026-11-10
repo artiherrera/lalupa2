@@ -25,7 +25,7 @@ export const AMBITOS: { value: Ambito; label: string; hint: string }[] = [
   {
     value: "numero",
     label: "Núm. de contrato",
-    hint: "el número del contrato o del procedimiento (p. ej. FTM/PTM/LP/005/2024); da igual si lleva guiones o diagonales",
+    hint: "el número del contrato o del procedimiento (p. ej. FTM/PTM/LP/005/2024), da igual si lleva guiones o diagonales; varios a la vez con OR o comas",
   },
 ];
 
